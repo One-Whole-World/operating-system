@@ -270,3 +270,179 @@ Error: System not found
 2025-07-11T17:29:19.192Z [INFO]: System registered: System A (system-a) on port 4001
 2025-07-11T17:29:21.531Z [INFO]: System registered: System B (system-b) on port 4002
 2025-07-11T17:33:22.801Z [INFO]: System registered: System B (system-b) on port 4002
+2025-07-11T17:33:48.443Z [INFO]: 🛑 Shutting down One Whole World Operating System...
+2025-07-13T10:56:56.653Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T10:56:56.654Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T10:56:56.654Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T10:57:27.504Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T10:57:27.505Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T10:57:27.505Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T10:58:03.763Z [INFO]: System registered: System A (system-a) on port 4001
+2025-07-13T10:58:07.086Z [INFO]: System registered: System B (system-b) on port 4002
+2025-07-13T10:59:16.400Z [INFO]: Message queued: system-a → system-b (processed-data)
+2025-07-13T11:01:39.979Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:01:39.979Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:01:39.980Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:01:41.717Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:01:41.718Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:01:41.718Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:01:43.348Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:01:43.348Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:01:43.349Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:01:53.351Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:01:53.352Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:01:53.352Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:01:58.815Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:01:58.816Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:01:58.816Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:02:04.375Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:02:04.375Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:02:04.375Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:02:07.124Z [ERROR]: System not found System not found
+Error: System not found
+    at SystemService.updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/services/systemService.js:37:13)
+    at updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/controllers/systemController.js:21:36)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at handleValidationErrors (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/middlewares/validation.js:12:3)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at middleware (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/express-validator/lib/middlewares/check.js:16:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-07-13T11:02:12.774Z [INFO]: 🛑 Shutting down One Whole World Operating System...
+2025-07-13T11:02:15.507Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:02:15.508Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:02:15.508Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:02:20.829Z [INFO]: System registered: System A (system-a) on port 4001
+2025-07-13T11:02:25.045Z [INFO]: System registered: System B (system-b) on port 4002
+2025-07-13T11:02:37.433Z [INFO]: Message queued: system-a → system-b (test-message)
+2025-07-13T11:24:10.677Z [INFO]: 🛑 Shutting down One Whole World Operating System...
+2025-07-13T11:24:51.276Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:24:51.277Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:24:51.277Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:24:54.488Z [INFO]: System registered: System B (system-b) on port 4002
+2025-07-13T11:24:57.732Z [INFO]: System registered: System A (system-a) on port 4001
+2025-07-13T11:25:01.504Z [INFO]: Message queued: system-a → system-b (test-message)
+2025-07-13T11:26:08.794Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:26:08.795Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:26:08.795Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:26:24.506Z [ERROR]: System not found System not found
+Error: System not found
+    at SystemService.updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/services/systemService.js:37:13)
+    at updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/controllers/systemController.js:21:36)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at handleValidationErrors (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/middlewares/validation.js:12:3)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at middleware (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/express-validator/lib/middlewares/check.js:16:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-07-13T11:26:26.335Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:26:26.336Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:26:26.336Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:26:27.758Z [ERROR]: System not found System not found
+Error: System not found
+    at SystemService.updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/services/systemService.js:37:13)
+    at updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/controllers/systemController.js:21:36)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at handleValidationErrors (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/middlewares/validation.js:12:3)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at middleware (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/express-validator/lib/middlewares/check.js:16:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-07-13T11:26:54.503Z [ERROR]: System not found System not found
+Error: System not found
+    at SystemService.updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/services/systemService.js:37:13)
+    at updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/controllers/systemController.js:21:36)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at handleValidationErrors (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/middlewares/validation.js:12:3)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at middleware (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/express-validator/lib/middlewares/check.js:16:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-07-13T11:26:57.744Z [ERROR]: System not found System not found
+Error: System not found
+    at SystemService.updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/services/systemService.js:37:13)
+    at updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/controllers/systemController.js:21:36)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at handleValidationErrors (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/middlewares/validation.js:12:3)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at middleware (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/express-validator/lib/middlewares/check.js:16:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-07-13T11:26:59.541Z [INFO]: 🛑 Shutting down One Whole World Operating System...
+2025-07-13T11:27:03.329Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:27:03.329Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:27:03.329Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:27:11.598Z [INFO]: System registered: System A (system-a) on port 4001
+2025-07-13T11:27:14.397Z [INFO]: System registered: System B (system-b) on port 4002
+2025-07-13T11:27:26.138Z [INFO]: Message queued: system-a → system-b (test-message)
+2025-07-13T11:27:36.542Z [INFO]: 🛑 Shutting down One Whole World Operating System...
+2025-07-13T11:29:59.702Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:29:59.703Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:29:59.703Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:30:03.475Z [INFO]: System registered: System B (system-b) on port 4002
+2025-07-13T11:30:05.789Z [INFO]: System registered: System A (system-a) on port 4001
+2025-07-13T11:30:16.322Z [INFO]: Message queued: system-a → system-b (test-message)
+2025-07-13T11:30:42.377Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:30:42.378Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:30:42.378Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:30:44.339Z [INFO]: 🛑 Shutting down One Whole World Operating System...
+2025-07-13T11:30:47.594Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:30:47.595Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:30:47.595Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:30:51.085Z [INFO]: System registered: System B (system-b) on port 4002
+2025-07-13T11:30:54.595Z [INFO]: System registered: System A (system-a) on port 4001
+2025-07-13T11:31:01.923Z [INFO]: Message queued: system-a → system-b (test-message)
+2025-07-13T11:31:49.361Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:31:49.361Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:31:49.361Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:31:51.108Z [ERROR]: System not found System not found
+Error: System not found
+    at SystemService.updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/services/systemService.js:37:13)
+    at updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/controllers/systemController.js:21:36)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at handleValidationErrors (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/middlewares/validation.js:12:3)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at middleware (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/express-validator/lib/middlewares/check.js:16:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-07-13T11:31:54.600Z [ERROR]: System not found System not found
+Error: System not found
+    at SystemService.updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/services/systemService.js:37:13)
+    at updateHeartbeat (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/controllers/systemController.js:21:36)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at handleValidationErrors (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/middlewares/validation.js:12:3)
+    at Layer.handleRequest (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/router/lib/route.js:157:13)
+    at middleware (/Users/samarjitkhanuja/Desktop/One Whole World/operating-system/oww-os/node_modules/express-validator/lib/middlewares/check.js:16:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-07-13T11:31:57.941Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:31:57.941Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:31:57.942Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:31:58.988Z [INFO]: 🛑 Shutting down One Whole World Operating System...
+2025-07-13T11:32:01.589Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:32:01.590Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:32:01.590Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:32:05.495Z [INFO]: System registered: System B (system-b) on port 4002
+2025-07-13T11:32:09.912Z [INFO]: System registered: System A (system-a) on port 4001
+2025-07-13T11:32:18.770Z [INFO]: Message queued: system-a → system-b (test-message)
+2025-07-13T11:32:18.829Z [INFO]: Message acknowledged: 87a05a1b-2b45-4534-809b-5ee716b53087 (delivered)
+2025-07-13T11:32:42.052Z [INFO]: 🛑 Shutting down One Whole World Operating System...
+2025-07-13T11:32:56.928Z [INFO]: 🌍 One Whole World Operating System running on port 3000
+2025-07-13T11:32:56.929Z [INFO]: 📊 Dashboard available at: http://localhost:3000
+2025-07-13T11:32:56.929Z [INFO]: 🔧 API ready for system registration and communication
+2025-07-13T11:33:19.309Z [INFO]: System registered: System B (system-b) on port 4002
+2025-07-13T11:33:25.553Z [INFO]: System registered: System A (system-a) on port 4001
+2025-07-13T11:34:37.413Z [INFO]: System registered: System B (system-b) on port 4002
+2025-07-13T11:34:57.053Z [INFO]: System registered: System B (system-b) on port 4002
+2025-07-13T11:35:25.404Z [INFO]: Message queued: system-a → system-b (test-message)
+2025-07-13T11:35:25.442Z [INFO]: Message acknowledged: c543f169-3d5f-4afc-bec9-a8cbd851ac32 (delivered)
+2025-07-13T11:36:08.330Z [INFO]: Message queued: system-a → system-b (test-message)
+2025-07-13T11:36:08.339Z [INFO]: Message acknowledged: 5118ca4e-353c-4ef4-9709-f3fc66324263 (delivered)
+2025-07-13T11:38:18.104Z [INFO]: System registered: System A (system-a) on port 4001

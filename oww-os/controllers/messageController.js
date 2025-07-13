@@ -1,6 +1,7 @@
 const messageService = require("../services/messageService");
 const systemService = require("../services/systemService");
 const logger = require("../utils/logger");
+const axios = require("axios");
 
 class MessageController {
   async sendMessage(req, res, next) {
@@ -18,6 +19,41 @@ class MessageController {
       }
 
       const message = messageService.sendMessage(req.body);
+
+      console.log(
+        "message received from ",
+        fromSystem.name,
+        " ",
+        "to ",
+        toSystem.name,
+        " ",
+        "message",
+        " ",
+        message
+      );
+
+      try {
+        const forwardResponse = await axios.post(
+          `http://localhost:4002/receive`,
+          {
+            fromSystemId: message.fromSystemId,
+            toSystemId: message.toSystemId,
+            messageType: message.messageType,
+            payload: message.payload,
+            messageId: message.messageId,
+            timestamp: message.timestamp,
+          }
+        );
+
+        console.log("✅ Message successfully forwarded to", toSystem.name);
+      } catch (forwardError) {
+        console.error(
+          "❌ Failed to forward message to",
+          toSystem.name,
+          ":",
+          forwardError.message
+        );
+      }
 
       res.status(201).json({
         success: true,
