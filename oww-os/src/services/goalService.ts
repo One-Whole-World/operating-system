@@ -1,7 +1,7 @@
 const prisma = require("../utils/prisma");
 const { createLog } = require("./logService");
 
-const createGoal = async (avatarId, description) => {
+export const createGoal = async (avatarId: any, description: any) => {
   const goal = await prisma.goal.create({
     data: {
       avatarId,
@@ -17,21 +17,21 @@ const createGoal = async (avatarId, description) => {
   return goal;
 };
 
-const getGoalById = async (id) => {
+const getGoalById = async (id: any) => {
   return await prisma.goal.findUnique({
     where: { id },
     include: { avatar: true, needs: true },
   });
 };
 
-const getGoalsByAvatarId = async (avatarId) => {
+const getGoalsByAvatarId = async (avatarId: any) => {
   return await prisma.goal.findMany({
     where: { avatarId },
     include: { needs: true },
   });
 };
 
-const updateGoalStatus = async (id, status) => {
+const updateGoalStatus = async (id: any, status: any) => {
   const goal = await prisma.goal.update({
     where: { id },
     data: { status },

@@ -1,7 +1,7 @@
 const prisma = require("../utils/prisma");
 const { createLog } = require("./logService");
 
-const createSystem = async (name, type) => {
+export const createSystem = async (name: any, type: any) => {
   const system = await prisma.system.create({
     data: {
       name,
@@ -16,7 +16,7 @@ const createSystem = async (name, type) => {
   return system;
 };
 
-const getSystemById = async (id) => {
+const getSystemById = async (id: any) => {
   return await prisma.system.findUnique({
     where: { id },
     include: { avatars: true },

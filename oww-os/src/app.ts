@@ -18,7 +18,7 @@ app.use("/api/needs", needRoutes);
 app.use("/api/mappings", mappingRoutes);
 app.use("/api/logs", logRoutes);
 
-app.get("/", (req, res) => {
+app.get("/", (req: any, res: any) => {
   res.send("OS POC API is running!");
 });
 

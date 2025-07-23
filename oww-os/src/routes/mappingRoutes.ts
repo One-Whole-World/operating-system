@@ -1,4 +1,4 @@
-const express = require("express");
+import express from "express";
 const mappingController = require("../controllers/mappingController");
 const router = express.Router();
 

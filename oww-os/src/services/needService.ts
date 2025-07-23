@@ -1,7 +1,7 @@
 const prisma = require("../utils/prisma");
 const { createLog } = require("./logService");
 
-const createNeed = async (goalId, description) => {
+export const createNeed = async (goalId: any, description: any) => {
   const need = await prisma.need.create({
     data: {
       goalId,
@@ -17,7 +17,7 @@ const createNeed = async (goalId, description) => {
   return need;
 };
 
-const getNeedById = async (id) => {
+const getNeedById = async (id: any) => {
   return await prisma.need.findUnique({
     where: { id },
     include: {
@@ -27,7 +27,7 @@ const getNeedById = async (id) => {
   });
 };
 
-const getNeedsByGoalId = async (goalId) => {
+const getNeedsByGoalId = async (goalId: any) => {
   return await prisma.need.findMany({
     where: { goalId },
     include: {

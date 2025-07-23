@@ -1,8 +1,8 @@
 const prisma = require("../utils/prisma");
 
 const createLog = async (
-  type,
-  description,
+  type: any,
+  description: any,
   entityId = null,
   metadata = null
 ) => {
@@ -21,7 +21,7 @@ const createLog = async (
   }
 };
 
-const getAllLogs = async () => {
+export const getAllLogs = async () => {
   return await prisma.log.findMany({
     orderBy: {
       timestamp: "desc",

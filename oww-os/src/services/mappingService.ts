@@ -1,9 +1,9 @@
 const prisma = require("../utils/prisma");
 const { createLog } = require("./logService");
 
-const createMapping = async (
-  needId,
-  fulfillerSystemId,
+export const createMapping = async (
+  needId: any,
+  fulfillerSystemId: any,
   fulfillerAvatarId = null,
   notes = null
 ) => {
@@ -25,14 +25,14 @@ const createMapping = async (
   return mapping;
 };
 
-const getMappingById = async (id) => {
+const getMappingById = async (id: any) => {
   return await prisma.mapping.findUnique({
     where: { id },
     include: { need: true, fulfillerSystem: true, fulfillerAvatar: true },
   });
 };
 
-const updateMappingStatus = async (id, status, notes = null) => {
+const updateMappingStatus = async (id: any, status: any, notes = null) => {
   const mapping = await prisma.mapping.update({
     where: { id },
     data: { status, notes },
@@ -46,14 +46,14 @@ const updateMappingStatus = async (id, status, notes = null) => {
   return mapping;
 };
 
-const getMappingsByNeedId = async (needId) => {
+const getMappingsByNeedId = async (needId: any) => {
   return await prisma.mapping.findMany({
     where: { needId },
     include: { fulfillerSystem: true, fulfillerAvatar: true },
   });
 };
 
-const getMappingsByFulfillerSystemId = async (fulfillerSystemId) => {
+const getMappingsByFulfillerSystemId = async (fulfillerSystemId: any) => {
   return await prisma.mapping.findMany({
     where: { fulfillerSystemId },
     include: {
