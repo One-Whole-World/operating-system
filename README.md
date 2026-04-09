@@ -23,22 +23,20 @@ To measure, monitor and meet the needs of all systems of One Whole World
 Any use of this code must comply with the zero strings principles.
 - [ ] Zero cruelty
 - [ ] Zero secrets
-- [ ] Zero conscious will 
-- [ ] Zero ego
+- [ ] Zero money
 - [ ] Zero judgement
-- [ ] Zero success
 - [ ] Zero failure
-- [ ] Zero reward 
 - [ ] Zero blame 
 - [ ] Zero punishment 
 - [ ] Zero regret
 - [ ] Zero shame
-- [ ] Zero choice
 - [ ] Zero greed
 - [ ] Zero arrogance 
 - [ ] Zero fear
 - [ ] Zero obligation 
-- [ ] Zero baggage 
+- [ ] Zero baggage
+- [ ] Zero borders
 - [ ] Zero boundaries
 - [ ] Zero privacy 
-
+- [ ] Zero conscious will 
+- [ ] Zero ego
