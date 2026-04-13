@@ -16,8 +16,11 @@ To ensure all systems in me are thriving.
 - [ ] I need to create wisdom from all the recorded frames of all my sub-systems.
 
 
+## Terms Of Use
+- [ ]  Any use of this code must comply with the zero strings principles.
+- [ ]  Any changes made must not be kept secert and must be submitted back to the Earth System.
+
 ## Zero Strings Principles
-Any use of this code shall comply with the zero strings principles.
 
 ### Level Zero
 - [ ] Zero cruelty
