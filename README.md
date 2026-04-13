@@ -1,7 +1,7 @@
-# One Whole World Operating System
+# Earth Operating System
 
 ## Mission
-To measure, monitor and meet the needs of all systems in One Whole World
+To measure, monitor and meet the needs of all systems on Earth.
 
 ## Earth System
 - [ ] I need to ensure every system in me gets everything it needs to achieve all its goals. 
