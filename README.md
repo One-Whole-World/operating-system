@@ -20,7 +20,7 @@ To ensure all systems in me are thriving.
 ## Terms Of Use
 
 - [ ]  Any use of this code must comply with the zero strings principles.
-- [ ]  Any changes made must not be kept secert and must be submitted back to the Earth System.
+- [ ]  Any changes made to this code must not be kept secret and they must be submitted back to the Earth System.
 
 ## Zero Strings Principles
 
