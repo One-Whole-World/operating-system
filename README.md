@@ -63,7 +63,7 @@ To ensure all systems in me are thriving.
 - A Role is a Character.
 - The Goal of a Role is play its Act.
 - To play its best Act, the Role has Needs.
-- The World is the Stage and the production Studio.
+- The World is the Stage, Set and the production Studio.
 - The Goal of the World is to provide every Actor everything it Needs to play its best Act for every Role it plays.
 - The recording of every Act of every Role is its Story.
 
