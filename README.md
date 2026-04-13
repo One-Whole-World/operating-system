@@ -2,7 +2,7 @@
 
 ## Goal
 
-To ensure all systems in me are thriving.
+To ensure every system in me is achieving all its goals. 
 
 ## Needs
 
