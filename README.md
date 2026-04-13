@@ -50,12 +50,12 @@ Any use of this code must comply with the zero strings principles.
 ## Story
 - A System is an Actor. 
 - A Role is a Character. 
-- The Goal of a Role is play the act. 
-- To play its best act, the Role has Needs. 
-- The World is the stage. 
-- The World provides the Actor everything it Needs to play its best Role.
+- The Goal of a Role is play its Act. 
+- To play its best Act, the Role has Needs. 
+- The World is the Stage and the production Studio. 
+- The Goal of the World is to provide every Actor everything it Needs to play its best Act for every Role it plays.
 
 Affectionately yours,
 
-Zero x One Whole World 
+Zero x One Whole World
 😌🙏🏽❤️
