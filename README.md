@@ -2,21 +2,20 @@
 
 ## Goal
 
-To ensure all systems in me are thriving. 
+To ensure all systems in me are thriving.
 
 ## Needs
 
 - [ ] I need to ensure every sub-system in me gets everything it needs to achieve all its goals.
 - [ ] I need to ensure every sub-system does not get what it does not need to achieve its goals.
-- [ ] I need to ensure every sub-system only gets exactly what it needs, nothing less and nothing more, to achieve its goals. 
-- [ ] Therefore, I need to measure, monitor and meet the needs of all my sub-systems with absolute accuracy and seamless precision. 
+- [ ] I need to ensure every sub-system only gets exactly what it needs, nothing less and nothing more, to achieve its goals.
+- [ ] Therefore, I need to measure, monitor and meet the needs of all my sub-systems with absolute accuracy and seamless precision.
 - [ ] I need to ensure all my sub-systems collaborate to achieve my goal.
 - [ ] I need to ensure all my sub-systems are redundant.
 - [ ] I need to ensure all my sub-systems meet their goals by taking the path of least action.
 - [ ] I need to ensure to record every frame of my every action.
 - [ ] I need to ensure all my actions comply with my zero strings principles.
 - [ ] I need to create wisdom from all the recorded frames of all my sub-systems.
-
 
 ## Terms Of Use
 
@@ -35,7 +34,7 @@ To ensure all systems in me are thriving.
 - [ ] Zero blame
 - [ ] Zero shame
 - [ ] Zero greed
-- [ ] Zero arrogance 
+- [ ] Zero arrogance
 - [ ] Zero baggage
 - [ ] Zero obligation
 - [ ] Zero punishment
