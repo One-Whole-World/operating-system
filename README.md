@@ -1,8 +1,12 @@
 # Earth Operating System
 
-## Goal
+Earth = Stage
+Life = Actors
+Environment = Set
 
-To elevate Earth to and maitain a Level One Paragon System. 
+## Mission
+
+Elevate Earth to a Level One Paragon System and maintain it there.  
 
 ## Needs
 
