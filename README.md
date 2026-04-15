@@ -1,5 +1,6 @@
 # Earth Operating System
 
+- One Whole World = Movie Studio
 - Earth = Stage
 - Life = Actors
 - Environment = Set
