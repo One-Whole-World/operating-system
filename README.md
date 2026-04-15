@@ -1,8 +1,8 @@
 # Earth Operating System
 
-Earth = Stage
-Life = Actors
-Environment = Set
+- Earth = Stage
+- Life = Actors
+- Environment = Set
 
 ## Mission
 
