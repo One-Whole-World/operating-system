@@ -57,7 +57,7 @@ canvas{display:block}
 }
 #inspectPanel.visible{display:block}
 #inspectPanel h3{
-  margin:0 0 6px 0;
+  margin:0 28px 6px 0;
   font-size:16px;
 }
 #inspectPanel p{
@@ -65,9 +65,23 @@ canvas{display:block}
   color:#bcd0f5;
   font-size:12px;
 }
-.inspectBtns{display:flex;gap:8px}
+#closeInspectBtn{
+  position:absolute;
+  top:10px;
+  right:10px;
+  width:28px;
+  height:28px;
+  border:none;
+  border-radius:999px;
+  background:rgba(255,255,255,.12);
+  color:#eef4ff;
+  cursor:pointer;
+  font:600 16px/1 Inter,system-ui,sans-serif;
+}
+#closeInspectBtn:hover{background:rgba(255,255,255,.2)}
+.inspectBtns{display:flex;flex-direction:column;gap:8px}
 .inspectBtns button{
-  flex:1;
+  width:100%;
   border:none;
   border-radius:10px;
   padding:10px 12px;
@@ -77,6 +91,8 @@ canvas{display:block}
 }
 #satisfiedBtn{background:#16a34a}
 #notSatisfiedBtn{background:#dc2626}
+#focusEnergyBtn{background:rgba(212,175,55,.85);color:#111827}
+#elevateBtn{background:rgba(99,102,241,.85)}
 
 </style>
 </head>
@@ -88,11 +104,14 @@ canvas{display:block}
 </div>
 
 <div id="inspectPanel">
-  <h3>Inspect System</h3>
-  <p>Set the system state.</p>
+  <button id="closeInspectBtn" aria-label="Close">×</button>
+  <h3 id="inspectTitle">Inspect System</h3>
+  <p id="inspectSubtitle">Set the system state.</p>
   <div class="inspectBtns">
     <button id="satisfiedBtn">Satisfied</button>
     <button id="notSatisfiedBtn">Not Satisfied</button>
+    <button id="focusEnergyBtn">Focus Energy</button>
+    <button id="elevateBtn">Ascend</button>
   </div>
 </div>
 
@@ -129,28 +148,104 @@ function updateCamera() {
 updateCamera();
 
 const inspectPanel = document.getElementById('inspectPanel');
+const inspectTitle = document.getElementById('inspectTitle');
+const inspectSubtitle = document.getElementById('inspectSubtitle');
 const satisfiedBtn = document.getElementById('satisfiedBtn');
 const notSatisfiedBtn = document.getElementById('notSatisfiedBtn');
+const focusEnergyBtn = document.getElementById('focusEnergyBtn');
+const elevateBtn = document.getElementById('elevateBtn');
+const closeInspectBtn = document.getElementById('closeInspectBtn');
 const showConnectionsBtn = document.getElementById('showConnectionsBtn');
 const showHealthBtn = document.getElementById('showHealthBtn');
 
+const COLORS = {
+  defaultDome: 0x6fbaff,
+  defaultGlow: 0x4da6ff,
+  defaultRing: 0x4da6ff,
+  defaultPulse: 0xffd700,
+  satisfied: 0x16a34a,
+  notSatisfied: 0xdc2626
+};
+
 let systemSelected = false;
+let selectedSystem = null;
 let connectionsMode = false;
 let healthMode = false;
+let elevatedMode = false;
+let elevateBlend = 0.0;
+let elevateTransitionActive = false;
+let autoPanDelay = 0.0;
+let descendCameraRadius = orbit.radius;
+let formationRetargetActive = false;
+let formationRetargetBlend = 1.0;
+const formationRetargetStarts = new Map();
+
+function resetElevation() {
+  elevatedMode = false;
+  elevateTransitionActive = true;
+  autoPanDelay = 0.0;
+  descendCameraRadius = orbit.radius;
+  formationRetargetActive = false;
+  formationRetargetBlend = 1.0;
+  formationRetargetStarts.clear();
+  elevateBtn.textContent = 'Ascend';
+}
+
+function lerpAngle(current, target, amt) {
+  let delta = target - current;
+  while (delta > Math.PI) delta -= Math.PI * 2.0;
+  while (delta < -Math.PI) delta += Math.PI * 2.0;
+  return current + delta * amt;
+}
+
+function syncElevateButton() {
+  elevateBtn.textContent = elevatedMode ? 'Descend' : 'Ascend';
+}
+
+function enableConnectionsMode() {
+  if (healthMode) {
+    healthMode = false;
+    showHealthBtn.classList.remove('active');
+    showHealthBtn.textContent = 'Show Health';
+  }
+  connectionsMode = true;
+  showConnectionsBtn.classList.add('active');
+  showConnectionsBtn.textContent = 'Hide Energy';
+  showHealthBtn.style.display = 'none';
+  syncElevateButton();
+}
+
+function startFormationRetarget(newFocusSystem) {
+  formationRetargetStarts.clear();
+  clickableSystems.forEach(system => {
+    formationRetargetStarts.set(system, {
+      position: (system.currentPosition || system.g.position).clone(),
+      anchor: (system.currentAnchor || system.earthAnchor || new THREE.Vector3()).clone(),
+      outward: (system.currentOutward || system.surfaceNormal || new THREE.Vector3(0, 1, 0)).clone()
+    });
+  });
+  focusedSystem = newFocusSystem;
+  formationRetargetActive = true;
+  formationRetargetBlend = 0.0;
+}
 
 // UI Logic
 showConnectionsBtn.addEventListener('click', () => {
   connectionsMode = !connectionsMode;
+  if (!connectionsMode) resetElevation();
   showConnectionsBtn.classList.toggle('active', connectionsMode);
   showConnectionsBtn.textContent = connectionsMode ? 'Hide Energy' : 'Show Energy';
   showHealthBtn.style.display = connectionsMode ? 'none' : 'block';
+  syncElevateButton();
 });
 
 showHealthBtn.addEventListener('click', () => {
   healthMode = !healthMode;
+  if (healthMode) resetElevation();
   showHealthBtn.classList.toggle('active', healthMode);
   showHealthBtn.textContent = healthMode ? 'Hide Health' : 'Show Health';
   showConnectionsBtn.style.display = healthMode ? 'none' : 'block';
+  syncElevateButton();
 });
 
 // ===== STARS (Depth Colored) =====
@@ -586,34 +681,71 @@ systemRing.rotation.x = -Math.PI / 2;
 systemGroup.add(systemRing);
 scene.add(systemGroup);
 
-function createSystem(){
+function createSystem(name = 'System'){
   const g = new THREE.Group();
-  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.0225, 32, 16, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshBasicMaterial({color:0x6fbaff})));
-  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.0275, 20, 20), new THREE.MeshBasicMaterial({color:0x4da6ff, transparent:true, opacity:0.06})));
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.025,0.036,64), new THREE.MeshBasicMaterial({color:0x4da6ff, transparent:true, opacity:0.95, side:THREE.DoubleSide}));
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.0225, 32, 16, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshBasicMaterial({color:COLORS.defaultDome})));
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.0275, 20, 20), new THREE.MeshBasicMaterial({color:COLORS.defaultGlow, transparent:true, opacity:0.06})));
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.025,0.036,64), new THREE.MeshBasicMaterial({color:COLORS.defaultRing, transparent:true, opacity:0.95, side:THREE.DoubleSide}));
   ring.rotation.x = -Math.PI/2; g.add(ring);
-  return {g, dome: g.children[0], glow: g.children[1], ring};
+  return {g, dome: g.children[0], glow: g.children[1], ring, name, state: 'default'};
+}
+
+function getSystemColors(state) {
+  if (state === 'satisfied') {
+    return { dome: COLORS.satisfied, glow: COLORS.satisfied, ring: COLORS.defaultRing, pulse: COLORS.satisfied };
+  }
+  if (state === 'notSatisfied') {
+    return { dome: COLORS.notSatisfied, glow: COLORS.notSatisfied, ring: COLORS.defaultRing, pulse: COLORS.notSatisfied };
+  }
+  return { dome: COLORS.defaultDome, glow: COLORS.defaultGlow, ring: COLORS.defaultRing, pulse: COLORS.defaultPulse };
+}
+
+function applySystemColors(system) {
+  const colors = getSystemColors(system.state);
+  system.dome.material.color.setHex(colors.dome);
+  system.glow.material.color.setHex(colors.glow);
+  system.ring.material.color.setHex(colors.ring);
+}
+
+function openInspectPanel(system) {
+  selectedSystem = system;
+  systemSelected = true;
+  inspectTitle.textContent = system.name;
+  inspectSubtitle.textContent = 'Set the system state.';
+  syncElevateButton();
+  inspectPanel.classList.add('visible');
+}
+
+function closeInspectPanel() {
+  selectedSystem = null;
+  systemSelected = false;
+  inspectPanel.classList.remove('visible');
+}
+
+function setSelectedSystemState(state) {
+  if (!selectedSystem) return;
+  selectedSystem.state = state;
 }
 
 const systemsData = [
-  {lat:45.4642, lon:9.1900}, // Milan
-  {lat:35.2271, lon:-80.8431}, // Charlotte
-  {lat:45.5152, lon:-122.6784}, // Portland
-  {lat:18.5204, lon:73.8567}, // Pune
-  {lat:30.7333, lon:76.7794}, // Chandigarh
-  {lat:28.6139, lon:77.2090}, // Delhi
-  {lat:45.6770, lon:-111.0429}, // Bozeman
-  {lat:48.4284, lon:-123.3656}, // Victoria BC
-  {lat:53.4808, lon:-2.2426}, // Manchester, UK
-  {lat:41.8781, lon:-87.6298}, // Chicago, USA
-  {lat:-33.8688, lon:151.2093}, // Sydney, Australia
-  {lat:12.9716, lon:77.5946}, // Bangalore, India
-  {lat:13.0827, lon:80.2707}, // Chennai, India
-  {lat:1.3521, lon:103.8198}, // Singapore
-  {lat:31.6340, lon:74.8723}, // Amritsar, India
-  {lat:22.7196, lon:75.8577}  // Indore, India
+  {name:'Milan', lat:45.4642, lon:9.1900},
+  {name:'Charlotte', lat:35.2271, lon:-80.8431},
+  {name:'Portland', lat:45.5152, lon:-122.6784},
+  {name:'Pune', lat:18.5204, lon:73.8567},
+  {name:'Chandigarh', lat:30.7333, lon:76.7794},
+  {name:'Delhi', lat:28.6139, lon:77.2090},
+  {name:'Bozeman', lat:45.6770, lon:-111.0429},
+  {name:'Victoria', lat:48.4284, lon:-123.3656},
+  {name:'Manchester', lat:53.4808, lon:-2.2426},
+  {name:'Chicago', lat:41.8781, lon:-87.6298},
+  {name:'Sydney', lat:-33.8688, lon:151.2093},
+  {name:'Bangalore', lat:12.9716, lon:77.5946},
+  {name:'Chennai', lat:13.0827, lon:80.2707},
+  {name:'Singapore', lat:1.3521, lon:103.8198},
+  {name:'Amritsar', lat:31.6340, lon:74.8723},
+  {name:'Indore', lat:22.7196, lon:75.8577}
 ];
-const extraSystems = systemsData.map(d=>{ const s = createSystem(); scene.add(s.g); s.base = latLonToVec(d.lat, d.lon, 1.001); return s; });
+const extraSystems = systemsData.map(d=>{ const s = createSystem(d.name); scene.add(s.g); s.base = latLonToVec(d.lat, d.lon, 1.001); return s; });
 
 // ===== SYNCHRONIZED, BI-DIRECTIONAL ENERGY ARCS =====
 let globalMaxArcLength = 0;
@@ -622,7 +754,7 @@ const arcShaderSource = {
   uniforms: {
     time: { value: 0 },
     colorGoa: { value: new THREE.Color(0xffd700) }, // Gold
-    colorSys: { value: new THREE.Color(0x4da6ff) }, // Cyan/Blue
+    colorSys: { value: new THREE.Color(0xffd700) }, // Gold
     isCore: { value: 1.0 },
     arcLength: { value: 1.0 }, 
     maxArcLength: { value: 1.0 } 
@@ -644,7 +776,6 @@ const arcShaderSource = {
     varying vec2 vUv;
 
     void main() {
-      vec3 baseColor = mix(colorGoa, colorSys, vUv.x);
       float V = 0.15; 
       float D_leg = maxArcLength + 0.5; 
       float D_cycle = D_leg * 2.0; 
@@ -664,7 +795,17 @@ const arcShaderSource = {
       float baseAlpha = isCore > 0.5 ? 0.25 : 0.06;
       float pulseAlpha = trail * 0.6 + head * 1.0;
       if (isCore < 0.5) pulseAlpha *= 0.5;
-      vec3 finalColor = baseColor + (baseColor * pulseAlpha * 2.0); 
+
+      vec3 travelColor = mix(colorSys, colorGoa, isRev);
+      vec3 previousColor = mix(colorGoa, colorSys, isRev);
+      vec3 baseColor = mix(previousColor, travelColor, validMask);
+
+      vec3 goldColor = vec3(1.0, 0.843, 0.0);
+      float baseIsGold = 1.0 - smoothstep(0.05, 0.25, distance(baseColor, goldColor));
+      float baseBoost = 1.0 + (1.0 - baseIsGold) * 0.5;
+      baseColor = min(baseColor * baseBoost, vec3(1.0));
+
+      vec3 finalColor = baseColor + (travelColor * pulseAlpha * 2.0);
       float outAlpha = (baseAlpha + pulseAlpha) * smoothstep(0.0, 0.05, vUv.x) * smoothstep(1.0, 0.95, vUv.x);
       gl_FragColor = vec4(finalColor, outAlpha);
     }
@@ -704,19 +845,32 @@ function createArcLine() {
   return { tubeCore, tubeGlow };
 }
 
-const goaConnections = extraSystems.map((sys) => {
-  const arc = createArcLine();
-  return { sys, arc };
-});
 
 function updateArcPositions(startVec, endVec, arcObj) {
-  const start = startVec.clone().normalize().multiplyScalar(1.03);
-  const end = endVec.clone().normalize().multiplyScalar(1.03);
-  const mid = start.clone().add(end).multiplyScalar(0.5).normalize();
-  
-  const distance = start.distanceTo(end);
-  const lift = Math.min(1.4, 0.35 + distance * 0.6);
-  const control = mid.multiplyScalar(1.0 + lift);
+  const startLen = startVec.length();
+  const endLen = endVec.length();
+  const avgLen = (startLen + endLen) * 0.5;
+  const styleBlendRaw = THREE.MathUtils.clamp((avgLen - 1.03) / 0.10, 0, 1);
+  const styleBlend = styleBlendRaw * styleBlendRaw * (3.0 - 2.0 * styleBlendRaw);
+
+  const globeStart = startVec.clone().normalize().multiplyScalar(1.03);
+  const globeEnd = endVec.clone().normalize().multiplyScalar(1.03);
+  const globeMid = globeStart.clone().add(globeEnd).multiplyScalar(0.5).normalize();
+  const globeDistance = globeStart.distanceTo(globeEnd);
+  const globeLift = Math.min(1.4, 0.35 + globeDistance * 0.6);
+  const globeControl = globeMid.multiplyScalar(1.0 + globeLift);
+
+  const spaceStart = startVec.clone();
+  const spaceEnd = endVec.clone();
+  const spaceMid = spaceStart.clone().add(spaceEnd).multiplyScalar(0.5);
+  const spaceDistance = spaceStart.distanceTo(spaceEnd);
+  const spaceMidRadius = spaceMid.length();
+  const spaceLift = Math.min(0.55, 0.12 + spaceDistance * 0.22);
+  const spaceControl = spaceMid.clone().normalize().multiplyScalar(spaceMidRadius + spaceLift);
+
+  const start = globeStart.clone().lerp(spaceStart, styleBlend);
+  const end = globeEnd.clone().lerp(spaceEnd, styleBlend);
+  const control = globeControl.clone().lerp(spaceControl, styleBlend);
 
   const curve = new THREE.QuadraticBezierCurve3(start, control, end);
   const trueArcLength = curve.getLength();
@@ -747,15 +901,44 @@ function projectPointer(event) {
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 }
 
-const dashboardState = { mode: 'default', allMet: true };
+const primarySystem = {
+  g: systemGroup,
+  dome,
+  glow: domeGlow,
+  ring: systemRing,
+  name: 'Goa',
+  state: 'default'
+};
+const clickableSystems = [primarySystem, ...extraSystems];
+const connectionPool = Array.from({ length: clickableSystems.length - 1 }, () => createArcLine());
+let focusedSystem = primarySystem;
 
-function updateDashboardSatisfied(value) {
-  dashboardState.mode = 'needs';
-  dashboardState.allMet = value;
-}
-
-satisfiedBtn.addEventListener('click', () => updateDashboardSatisfied(true));
-notSatisfiedBtn.addEventListener('click', () => updateDashboardSatisfied(false));
+satisfiedBtn.addEventListener('click', () => setSelectedSystemState('satisfied'));
+notSatisfiedBtn.addEventListener('click', () => setSelectedSystemState('notSatisfied'));
+focusEnergyBtn.addEventListener('click', () => {
+  if (!selectedSystem) return;
+  if (!connectionsMode) enableConnectionsMode();
+  if (elevatedMode && focusedSystem !== selectedSystem) {
+    startFormationRetarget(selectedSystem);
+  } else {
+    focusedSystem = selectedSystem;
+  }
+});
+elevateBtn.addEventListener('click', () => {
+  if (!selectedSystem) return;
+  if (elevatedMode && focusedSystem === selectedSystem) {
+    resetElevation();
+  } else if (elevatedMode) {
+    startFormationRetarget(selectedSystem);
+  } else {
+    focusedSystem = selectedSystem;
+    elevatedMode = true;
+    elevateTransitionActive = true;
+    autoPanDelay = 0.0;
+  }
+  syncElevateButton();
+});
+closeInspectBtn.addEventListener('click', closeInspectPanel);
 
 // ===== LOCATION =====
 const lat = 15.5588;
@@ -768,16 +951,79 @@ function latLonToVec(lat, lon, r) {
     -r * Math.sin(phi) * Math.cos(theta), r * Math.cos(phi), r * Math.sin(phi) * Math.sin(theta)
   );
 }
+
+function quadraticBezierVec3(p0, p1, p2, t) {
+  const omt = 1.0 - t;
+  return p0.clone().multiplyScalar(omt * omt)
+    .add(p1.clone().multiplyScalar(2.0 * omt * t))
+    .add(p2.clone().multiplyScalar(t * t));
+}
+
+function smoothstep01(x) {
+  const t = Math.max(0.0, Math.min(1.0, x));
+  return t * t * (3.0 - 2.0 * t);
+}
+
+function computeStagedOrbitPosition(earthPos, surfaceNormal, targetPos, blend) {
+  const stageSplit = 0.5;
+  const orbitLift = 0.28;
+  const launchPoint = earthPos.clone().add(surfaceNormal.clone().multiplyScalar(orbitLift));
+
+  if (blend <= stageSplit) {
+    const t = smoothstep01(blend / stageSplit);
+    return earthPos.clone().lerp(launchPoint, t);
+  }
+
+  const t = smoothstep01((blend - stageSplit) / (1.0 - stageSplit));
+  const spaceMid = launchPoint.clone().add(targetPos).multiplyScalar(0.5);
+  const midNormal = spaceMid.clone().normalize();
+  const control = midNormal.multiplyScalar(Math.max(launchPoint.length(), targetPos.length()) + 0.18)
+    .add(new THREE.Vector3(0, 0.06, 0));
+  return quadraticBezierVec3(launchPoint, control, targetPos, t);
+}
+
+function getLocalBasis(normal) {
+  const reference = Math.abs(normal.y) < 0.95
+    ? new THREE.Vector3(0, 1, 0)
+    : new THREE.Vector3(1, 0, 0);
+  const tangentA = new THREE.Vector3().crossVectors(reference, normal).normalize();
+  const tangentB = new THREE.Vector3().crossVectors(normal, tangentA).normalize();
+  return { tangentA, tangentB };
+}
+
+function getElevatedLayoutTargets(focusSystem) {
+  const center = new THREE.Vector3(0, 1.09, 0);
+  const ringAxisA = new THREE.Vector3(1, 0, 0);
+  const ringAxisB = new THREE.Vector3(0, 0, 1);
+  const others = clickableSystems.filter(system => system !== focusSystem);
+  const ringRadius = 0.42;
+  const focusLift = new THREE.Vector3(0, 0.04, 0);
+  const targets = new Map();
+
+  targets.set(focusSystem, {
+    position: center.clone().add(focusLift),
+    anchor: center.clone().add(focusLift),
+    outward: new THREE.Vector3(0, 1, 0)
+  });
+
+  others.forEach((system, idx) => {
+    const angle = (idx / Math.max(1, others.length)) * Math.PI * 2 - Math.PI / 2;
+    const circularOffset = ringAxisA.clone().multiplyScalar(Math.cos(angle) * ringRadius)
+      .add(ringAxisB.clone().multiplyScalar(Math.sin(angle) * ringRadius));
+    const elevatedPos = center.clone().add(circularOffset);
+    const outward = elevatedPos.clone().sub(center).normalize().lerp(new THREE.Vector3(0, 1, 0), 0.35).normalize();
+    targets.set(system, {
+      position: elevatedPos,
+      anchor: elevatedPos.clone(),
+      outward
+    });
+  });
+
+  return targets;
+}
 const base = latLonToVec(lat, lon, 1.001);
 const domeHeight = 0.02;
 
-function getDashboardColors() {
-  const blueRing = 0x4da6ff, blueDome = 0x6fbaff, greenDome = 0x16a34a, redDome = 0xdc2626;
-  if (dashboardState.mode === 'needs' || dashboardState.mode === 'goals') {
-    return { ring: blueRing, dome: dashboardState.allMet ? greenDome : redDome, glow: dashboardState.allMet ? 0x16a34a : 0xdc2626 };
-  }
-  return { ring: blueRing, dome: blueDome, glow: blueRing };
-}
 
 // ===== CURRENT EARTH ROTATION FROM REAL UTC =====
 function currentUtcFraction() {
@@ -792,7 +1038,12 @@ function updateEarthSpin() {
 // ===== INTERACTION =====
 let dragging = false, lastX = 0, lastY = 0, pointerMoved = false;
 
-canvas.addEventListener('pointerdown', (e) => { dragging = true; pointerMoved = false; lastX = e.clientX; lastY = e.clientY; });
+canvas.addEventListener('pointerdown', (e) => {
+  if (!elevatedMode && elevateTransitionActive) {
+    elevateTransitionActive = false;
+  }
+  dragging = true; pointerMoved = false; lastX = e.clientX; lastY = e.clientY;
+});
 canvas.addEventListener('pointermove', (e) => {
   if (!dragging) return;
   const dx = e.clientX - lastX, dy = e.clientY - lastY;
@@ -803,11 +1054,13 @@ canvas.addEventListener('pointermove', (e) => {
 });
 canvas.addEventListener('pointerup', (e) => {
   if (!pointerMoved) {
-    projectPointer(e); raycaster.setFromCamera(pointer, camera);
-    if (raycaster.intersectObject(dome, false).length) {
-      systemSelected = true; inspectPanel.classList.add('visible');
+    projectPointer(e);
+    raycaster.setFromCamera(pointer, camera);
+    const intersectedSystem = clickableSystems.find(system => raycaster.intersectObject(system.dome, false).length);
+    if (intersectedSystem) {
+      openInspectPanel(intersectedSystem);
     } else if (!inspectPanel.contains(e.target)) {
-      systemSelected = false; inspectPanel.classList.remove('visible');
+      closeInspectPanel();
     }
   }
   dragging = false;
@@ -820,6 +1073,10 @@ canvas.addEventListener('wheel', (e) => {
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight); camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix(); updateCamera();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeInspectPanel();
 });
 
 // ===== ANIMATION =====
@@ -843,43 +1100,114 @@ function animate() {
   const targetHealthFade = healthMode ? 1.0 : 0.0;
   healthMaterial.uniforms.uHealthFade.value += (targetHealthFade - healthMaterial.uniforms.uHealthFade.value) * 0.1;
 
-  const rotatedSurface = base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), earthGroup.rotation.y);
-  const outward = rotatedSurface.clone().normalize();
-  const domePos = rotatedSurface.clone().add(outward.clone().multiplyScalar(domeHeight));
-  systemGroup.position.copy(domePos);
-  systemGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), outward);
+  const elevateBlendRate = elevatedMode ? 0.01 : 0.005;
+  elevateBlend += ((elevatedMode ? 1.0 : 0.0) - elevateBlend) * elevateBlendRate;
+  const easedElevateBlend = elevateBlend * elevateBlend * (3.0 - 2.0 * elevateBlend);
 
-  extraSystems.forEach(s=>{
-    const surf = s.base.clone().applyAxisAngle(new THREE.Vector3(0,1,0), earthGroup.rotation.y);
-    const out = surf.clone().normalize();
-    const pos = surf.clone().add(out.clone().multiplyScalar(domeHeight));
-    s.g.position.copy(pos);
-    s.g.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), out);
-    s.dome.scale.setScalar(1 + Math.sin(t)*0.02);
-    s.glow.scale.setScalar(1 + Math.sin(t)*0.02);
+  if (elevateTransitionActive && elevatedMode) {
+    autoPanDelay = Math.min(1.0, autoPanDelay + 0.01);
+    const delayedPanBlend = Math.max(0.0, Math.min(1.0, (autoPanDelay - 0.16) / 0.58));
+    const easedPanBlend = delayedPanBlend * delayedPanBlend * (3.0 - 2.0 * delayedPanBlend);
+    const targetPhi = 1.25;
+    orbit.phi += (targetPhi - orbit.phi) * (0.006 * easedPanBlend);
+    updateCamera();
+    if (elevateBlend > 0.985) {
+      elevateTransitionActive = false;
+    }
+  }
+
+  clickableSystems.forEach(system => {
+    const surface = system === primarySystem
+      ? base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), earthGroup.rotation.y)
+      : system.base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), earthGroup.rotation.y);
+    const outward = surface.clone().normalize();
+    const pos = surface.clone().add(outward.clone().multiplyScalar(domeHeight));
+    const anchor = outward.clone().multiplyScalar(1.03);
+
+    system.surfacePosition = surface;
+    system.surfaceNormal = outward;
+    system.earthPosition = pos;
+    system.earthAnchor = anchor;
   });
 
-  goaConnections.forEach(({ sys, arc }) => {
-    const sysSurface = sys.base.clone().applyAxisAngle(new THREE.Vector3(0,1,0), earthGroup.rotation.y);
-    updateArcPositions(rotatedSurface, sysSurface, arc);
-    
-    arc.tubeCore.visible = isConn;
-    arc.tubeGlow.visible = isConn;
+  const elevatedTargets = getElevatedLayoutTargets(focusedSystem);
 
-    if (isConn) {
-        arc.tubeCore.material.uniforms.time.value = t;
-        arc.tubeGlow.material.uniforms.time.value = t;
+  if (formationRetargetActive) {
+    formationRetargetBlend = Math.min(1.0, formationRetargetBlend + 0.0175);
+    if (formationRetargetBlend >= 0.999) {
+      formationRetargetActive = false;
+      formationRetargetBlend = 1.0;
+      formationRetargetStarts.clear();
+    }
+  }
+
+  clickableSystems.forEach(system => {
+    const target = elevatedTargets.get(system);
+    let currentPos;
+    let currentAnchor;
+    let currentOutward;
+
+    if (elevatedMode && formationRetargetActive && formationRetargetStarts.has(system)) {
+      const retargetEase = formationRetargetBlend * formationRetargetBlend * (3.0 - 2.0 * formationRetargetBlend);
+      const start = formationRetargetStarts.get(system);
+      currentPos = start.position.clone().lerp(target.position, retargetEase);
+      currentAnchor = start.anchor.clone().lerp(target.anchor, retargetEase);
+      currentOutward = start.outward.clone().lerp(target.outward, retargetEase).normalize();
+    } else {
+      currentPos = computeStagedOrbitPosition(system.earthPosition, system.surfaceNormal, target.position, easedElevateBlend);
+      currentAnchor = computeStagedOrbitPosition(system.earthAnchor, system.surfaceNormal, target.anchor, easedElevateBlend);
+      currentOutward = system.surfaceNormal.clone().lerp(target.outward, easedElevateBlend).normalize();
+    }
+
+    system.g.position.copy(currentPos);
+    system.g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), currentOutward);
+    applySystemColors(system);
+    system.dome.scale.setScalar(1 + Math.sin(t) * 0.02);
+    system.glow.scale.setScalar(1 + Math.sin(t) * 0.02);
+    system.currentPosition = currentPos;
+    system.currentAnchor = currentAnchor;
+    system.currentOutward = currentOutward;
+  });
+
+  if (elevateTransitionActive && !elevatedMode) {
+    const focusViewDir = focusedSystem.earthPosition.clone().normalize();
+    const targetPhi = Math.max(-1.25, Math.min(1.25, Math.asin(focusViewDir.y)));
+    const targetTheta = Math.atan2(focusViewDir.x, focusViewDir.z);
+    orbit.radius += (descendCameraRadius - orbit.radius) * 0.04;
+    orbit.phi += (targetPhi - orbit.phi) * 0.015;
+    orbit.theta = lerpAngle(orbit.theta, targetTheta, 0.015);
+    updateCamera();
+    if (elevateBlend < 0.05) {
+      elevateTransitionActive = false;
+    }
+  }
+
+  const others = clickableSystems.filter(system => system !== focusedSystem);
+  const focusColors = getSystemColors(focusedSystem.state);
+
+  connectionPool.forEach((arc, idx) => {
+    const targetSystem = others[idx];
+    const showArc = isConn && !!targetSystem;
+    arc.tubeCore.visible = showArc;
+    arc.tubeGlow.visible = showArc;
+
+    if (!targetSystem) return;
+
+    updateArcPositions(focusedSystem.currentAnchor, targetSystem.currentAnchor, arc);
+
+    const targetColors = getSystemColors(targetSystem.state);
+    arc.tubeCore.material.uniforms.colorGoa.value.setHex(focusColors.pulse);
+    arc.tubeGlow.material.uniforms.colorGoa.value.setHex(focusColors.pulse);
+    arc.tubeCore.material.uniforms.colorSys.value.setHex(targetColors.pulse);
+    arc.tubeGlow.material.uniforms.colorSys.value.setHex(targetColors.pulse);
+
+    if (showArc) {
+      arc.tubeCore.material.uniforms.time.value = t;
+      arc.tubeGlow.material.uniforms.time.value = t;
     }
   });
 
   t += 0.04;
-
-  const dashboardColors = getDashboardColors();
-  dome.material.color.setHex(dashboardColors.dome);
-  domeGlow.material.color.setHex(dashboardColors.glow);
-  systemRing.material.color.setHex(dashboardColors.ring);
-  dome.scale.setScalar(1 + Math.sin(t) * 0.02);
-  domeGlow.scale.setScalar(1 + Math.sin(t) * 0.02);
 
   const sunPulse = 1 + Math.sin(t * 0.55) * 0.035;
   sunGlow.scale.set(1.28 * sunPulse, 1.28 * sunPulse, 1);
