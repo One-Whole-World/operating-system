@@ -236,6 +236,9 @@ showConnectionsBtn.addEventListener('click', () => {
   showConnectionsBtn.classList.toggle('active', connectionsMode);
   showConnectionsBtn.textContent = connectionsMode ? 'Hide Energy' : 'Show Energy';
   showHealthBtn.style.display = connectionsMode ? 'none' : 'block';
+  if (connectionsMode && typeof focusedSystem !== 'undefined' && focusedSystem) {
+    openInspectPanel(focusedSystem);
+  }
   syncElevateButton();
 });
 
