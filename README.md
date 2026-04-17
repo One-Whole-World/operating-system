@@ -5,7 +5,7 @@
 - Life are the Actors.
 - Live History are their Stories.
 
-## Mission
+## Goal
 
 Elevate Earth to a Paragon System and maintain it there.  
 
