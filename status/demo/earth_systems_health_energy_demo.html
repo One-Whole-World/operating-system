@@ -244,7 +244,10 @@ showConnectionsBtn.addEventListener('click', () => {
 
 showHealthBtn.addEventListener('click', () => {
   healthMode = !healthMode;
-  if (healthMode) resetElevation();
+  if (healthMode) {
+    resetElevation();
+    closeInspectPanel();
+  }
   showHealthBtn.classList.toggle('active', healthMode);
   showHealthBtn.textContent = healthMode ? 'Hide Health' : 'Show Health';
   showConnectionsBtn.style.display = healthMode ? 'none' : 'block';
@@ -514,106 +517,97 @@ const nightMaterial = new THREE.ShaderMaterial({
 const nightSphere = new THREE.Mesh(new THREE.SphereGeometry(1.0015, 128, 128), nightMaterial);
 earthGroup.add(nightSphere);
 
-// ===== BINARY HEALTH HEATMAP (DATA-DRIVEN RED/GREEN) =====
-const heatmapCanvas = document.createElement('canvas');
-heatmapCanvas.width = 4096;
-heatmapCanvas.height = 2048;
-const hctx = heatmapCanvas.getContext('2d');
-const heatmapTexture = new THREE.CanvasTexture(heatmapCanvas);
-heatmapTexture.colorSpace = THREE.SRGBColorSpace;
+
+// ===== HEALTH POPULATION PILLARS (STACKED RED/GREEN) =====
+let healthPillarsGroup = new THREE.Group();
+healthPillarsGroup.visible = false;
+healthPillarsGroup.renderOrder = 10;
+earthGroup.add(healthPillarsGroup);
+
+const healthPillarMaterials = {
+  red: new THREE.MeshBasicMaterial({ color: 0xdc2626, transparent: true, opacity: 0.96 }),
+  green: new THREE.MeshBasicMaterial({ color: 0x16a34a, transparent: true, opacity: 0.96 })
+};
+
+function clamp01(v) {
+  return Math.max(0, Math.min(1, v));
+}
+
+function clusteredGreenShare(lat, lng) {
+  const a = 0.5 + 0.5 * Math.sin((lat + 18.0) * 0.11);
+  const b = 0.5 + 0.5 * Math.cos((lng - 22.0) * 0.08);
+  const c = 0.5 + 0.5 * Math.sin((lat + lng) * 0.045);
+  const d = 0.5 + 0.5 * Math.cos((lat - lng) * 0.035);
+  const raw = a * 0.34 + b * 0.28 + c * 0.22 + d * 0.16;
+  return Math.pow(clamp01(raw), 1.65);
+}
+
+function rebuildHealthPillars(data) {
+  while (healthPillarsGroup.children.length) {
+    const child = healthPillarsGroup.children.pop();
+    if (child.geometry) child.geometry.dispose();
+  }
+
+  if (!data.length) return;
+
+  const maxPop = Math.max(...data.map(d => d.pop));
+  const totalPop = data.reduce((sum, d) => sum + d.pop, 0);
+
+  const rawShares = data.map(d => clusteredGreenShare(d.lat, d.lng));
+  const rawWeightedAvg = rawShares.reduce((sum, share, idx) => sum + share * data[idx].pop, 0) / totalPop;
+  const shareScale = rawWeightedAvg > 0 ? 0.20 / rawWeightedAvg : 1.0;
+
+  data.forEach((d, idx) => {
+    const popNorm = Math.sqrt(d.pop / maxPop);
+    const totalHeight = 0.01 + popNorm * 0.24;
+    const radius = 0.0025 + popNorm * 0.0095;
+
+    const greenShare = clamp01(rawShares[idx] * shareScale);
+    const greenHeight = totalHeight * greenShare;
+    const redHeight = totalHeight - greenHeight;
+
+    const base = latLonToVec(d.lat, d.lng, 1.0015);
+    const normal = base.clone().normalize();
+    const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+
+    if (greenHeight > 0.0005) {
+      const greenGeom = new THREE.CylinderGeometry(radius, radius, greenHeight, 64, 1, false);
+      const greenMesh = new THREE.Mesh(greenGeom, healthPillarMaterials.green);
+      greenMesh.quaternion.copy(quat);
+      greenMesh.position.copy(base.clone().add(normal.clone().multiplyScalar(greenHeight * 0.5)));
+      healthPillarsGroup.add(greenMesh);
+    }
+
+    if (redHeight > 0.0005) {
+      const redGeom = new THREE.CylinderGeometry(radius, radius, redHeight, 64, 1, false);
+      const redMesh = new THREE.Mesh(redGeom, healthPillarMaterials.red);
+      redMesh.quaternion.copy(quat);
+      redMesh.position.copy(base.clone().add(normal.clone().multiplyScalar(greenHeight + redHeight * 0.5)));
+      healthPillarsGroup.add(redMesh);
+    }
+  });
+}
 
 fetch('https://raw.githubusercontent.com/vasturiano/globe.gl/master/example/datasets/world_population.csv')
   .then(res => res.text())
   .then(csv => {
     const lines = csv.split('\n').slice(1);
     const data = [];
-    
-    // Parse the CSV
+
     for (let i = 0; i < lines.length; i++) {
       if (!lines[i].trim()) continue;
       const parts = lines[i].split(',');
-      data.push({
-        lat: parseFloat(parts[0]),
-        lng: parseFloat(parts[1]),
-        pop: parseFloat(parts[2])
-      });
-    }
-    
-    if (data.length === 0) {
-      console.warn("Dataset empty or failed to parse.");
-      return;
-    }
-
-    // Sort data so the highest density (Reds) render on top of the Greens
-    data.sort((a, b) => a.pop - b.pop);
-    
-    // Dynamically calculate the threshold. We mark the top 8% of populated areas as "Bad/Red"
-    const threshold = data[Math.floor(data.length * 0.92)].pop; 
-
-    hctx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
-    hctx.globalCompositeOperation = 'screen';
-
-    data.forEach(d => {
-      // Equirectangular projection mapping to 2D Canvas X/Y
-      const x = ((d.lng + 180) / 360) * heatmapCanvas.width;
-      const y = ((90 - d.lat) / 180) * heatmapCanvas.height;
-      
-      const isBad = d.pop >= threshold;
-      const radius = isBad ? 16 : 8; 
-      
-      const grad = hctx.createRadialGradient(x, y, 0, x, y, radius);
-      
-      // Binary assignment: Red for high density, Green for lower density
-      if (isBad) {
-        grad.addColorStop(0, 'rgba(239, 68, 68, 0.95)'); // Solid Red
-        grad.addColorStop(1, 'rgba(239, 68, 68, 0)');
-      } else {
-        grad.addColorStop(0, 'rgba(34, 197, 94, 0.60)'); // Glowing Green
-        grad.addColorStop(1, 'rgba(34, 197, 94, 0)');
+      const lat = parseFloat(parts[0]);
+      const lng = parseFloat(parts[1]);
+      const pop = parseFloat(parts[2]);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(pop)) {
+        data.push({ lat, lng, pop });
       }
-      
-      hctx.fillStyle = grad;
-      hctx.beginPath();
-      hctx.arc(x, y, radius, 0, Math.PI * 2);
-      hctx.fill();
-    });
-    
-    heatmapTexture.needsUpdate = true;
+    }
+
+    rebuildHealthPillars(data);
   })
-  .catch(err => console.error("Error loading heatmap data:", err));
-
-const healthMaterial = new THREE.ShaderMaterial({
-  uniforms: {
-    uHealthFade: { value: 0.0 },
-    tHeatmap: { value: heatmapTexture }
-  },
-  vertexShader: `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    uniform float uHealthFade;
-    uniform sampler2D tHeatmap;
-    varying vec2 vUv;
-    void main() {
-      // Sample the painted canvas map
-      vec4 color = texture2D(tHeatmap, vUv);
-      gl_FragColor = vec4(color.rgb, color.a * uHealthFade * 0.90);
-    }
-  `,
-  transparent: true,
-  blending: THREE.AdditiveBlending, // Use Additive blending so it looks like hologram data
-  depthWrite: false,
-  side: THREE.FrontSide
-});
-
-// Pushed to 1.035 to fully clear the atmosphere sphere (1.032)
-const healthSphere = new THREE.Mesh(new THREE.SphereGeometry(1.035, 128, 128), healthMaterial);
-healthSphere.renderOrder = 10; 
-earthGroup.add(healthSphere);
+  .catch(err => console.error('Error loading health pillar data:', err));
 
 // ===== SUPERCHARGED ATMOSPHERE GLOW =====
 const atmosphereMaterial = new THREE.ShaderMaterial({
@@ -1099,9 +1093,7 @@ function animate() {
   nightMaterial.uniforms.uMode.value += (targetMode - nightMaterial.uniforms.uMode.value) * 0.1;
   auroraMaterial.uniforms.uMode.value = nightMaterial.uniforms.uMode.value;
 
-  // Fade Heatmap In/Out
-  const targetHealthFade = healthMode ? 1.0 : 0.0;
-  healthMaterial.uniforms.uHealthFade.value += (targetHealthFade - healthMaterial.uniforms.uHealthFade.value) * 0.1;
+  healthPillarsGroup.visible = healthMode;
 
   const elevateBlendRate = elevatedMode ? 0.01 : 0.005;
   elevateBlend += ((elevatedMode ? 1.0 : 0.0) - elevateBlend) * elevateBlendRate;
@@ -1170,7 +1162,9 @@ function animate() {
     system.currentPosition = currentPos;
     system.currentAnchor = currentAnchor;
     system.currentOutward = currentOutward;
+    system.g.visible = !healthMode;
   });
+
 
   if (elevateTransitionActive && !elevatedMode) {
     const focusViewDir = focusedSystem.earthPosition.clone().normalize();
