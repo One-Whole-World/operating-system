@@ -159,6 +159,23 @@ body:not(.health-panel-mode) #healthNegativeBtn{
 </div>
 
 <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+
+<div id="pillarTooltip" style="
+position:fixed;
+pointer-events:none;
+background:rgba(8,12,24,.92);
+border:1px solid rgba(255,255,255,.15);
+border-radius:16px;
+padding:14px 16px;
+color:#eef4ff;
+font:12px Inter, system-ui, sans-serif;
+display:none;
+z-index:50;
+min-width:220px;
+box-shadow:0 18px 44px rgba(0,0,0,.38);
+backdrop-filter:blur(12px);
+"></div>
+
 <script>
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
@@ -314,13 +331,16 @@ showHealthBtn.addEventListener('click', () => {
     resetElevation();
     selectedSystem = null;
     systemSelected = false;
+    clearSelection();
     enterHealthPanelMode();
   } else {
+    clearSelection();
     closeInspectPanel();
   }
   showHealthBtn.classList.toggle('active', healthMode);
   showHealthBtn.textContent = healthMode ? 'Hide Health' : 'Show Health';
   showConnectionsBtn.style.display = healthMode ? 'none' : 'block';
+  updateHealthPillarVisibility();
   syncElevateButton();
 });
 
@@ -594,10 +614,30 @@ healthPillarsGroup.visible = false;
 healthPillarsGroup.renderOrder = 10;
 earthGroup.add(healthPillarsGroup);
 
+const HEALTH_BASE_OPACITY = 0.96;
+const HEALTH_DIM_FACTOR = 0.28;
+const HEALTH_GREEN = new THREE.Color(0x16a34a);
+const HEALTH_RED = new THREE.Color(0xdc2626);
+const HEALTH_GREEN_DIM = HEALTH_GREEN.clone().multiplyScalar(HEALTH_DIM_FACTOR);
+const HEALTH_RED_DIM = HEALTH_RED.clone().multiplyScalar(HEALTH_DIM_FACTOR);
+const HEALTH_INSTANCE_FULL = new THREE.Color(0xffffff);
+const HEALTH_INSTANCE_DIM = new THREE.Color(HEALTH_DIM_FACTOR, HEALTH_DIM_FACTOR, HEALTH_DIM_FACTOR);
+
+let greenInstances = null;
+let redInstances = null;
+
 const healthPillarMaterials = {
-  red: new THREE.MeshBasicMaterial({ color: 0xdc2626, transparent: true, opacity: 0.96 }),
-  green: new THREE.MeshBasicMaterial({ color: 0x16a34a, transparent: true, opacity: 0.96 })
+  // Final color fix:
+  // Use material color only, exactly like the stable non-instanced version.
+  // Red and green are separate InstancedMeshes, so we do not need instance colors.
+  red: new THREE.MeshBasicMaterial({ color: 0xdc2626, transparent: true, opacity: HEALTH_BASE_OPACITY }),
+  green: new THREE.MeshBasicMaterial({ color: 0x16a34a, transparent: true, opacity: HEALTH_BASE_OPACITY })
 };
+
+const basePillarGeometry = new THREE.CylinderGeometry(1, 1, 1, 24, 1, false);
+const tmpMatrix = new THREE.Matrix4();
+const tmpQuat = new THREE.Quaternion();
+const tmpScale = new THREE.Vector3();
 
 function clamp01(v) {
   return Math.max(0, Math.min(1, v));
@@ -612,11 +652,846 @@ function clusteredGreenShare(lat, lng) {
   return Math.pow(clamp01(raw), 1.65);
 }
 
-function rebuildHealthPillars(data) {
+
+
+const CURATED_TOP100_LABELS = {
+  "35.6850_139.7514": "Tokyo",
+  "40.6943_-73.9249": "New York",
+  "19.4424_-99.1310": "Mexico City",
+  "19.0170_72.8570": "Mumbai",
+  "-23.5587_-46.6250": "São Paulo",
+  "28.6700_77.2300": "Delhi",
+  "31.2165_121.4365": "Shanghai",
+  "22.4950_88.3247": "Kolkata",
+  "34.1139_-118.4068": "Los Angeles",
+  "23.7231_90.4086": "Dhaka",
+  "-34.6025_-58.3975": "Buenos Aires",
+  "24.8700_66.9900": "Karachi",
+  "30.0500_31.2500": "Cairo",
+  "-22.9250_-43.2250": "Rio de Janeiro",
+  "34.7500_135.4601": "Osaka",
+  "39.9289_116.3883": "Beijing",
+  "14.6042_120.9822": "Manila",
+  "55.7522_37.6155": "Moscow",
+  "41.1050_29.0100": "Istanbul",
+  "48.8667_2.3333": "Paris",
+  "37.5663_126.9997": "Seoul",
+  "6.4433_3.3915": "Lagos",
+  "-6.1744_106.8294": "Jakarta",
+  "23.1450_113.3250": "Guangzhou",
+  "41.8373_-87.6861": "Chicago",
+  "51.5000_-0.1167": "London",
+  "-12.0480_-77.0501": "Lima",
+  "35.6719_51.4243": "Tehran",
+  "-4.3297_15.3150": "Kinshasa",
+  "4.5964_-74.0833": "Bogotá",
+  "22.5524_114.1221": "Shenzhen",
+  "30.5800_114.2700": "Wuhan",
+  "22.3050_114.1850": "Hong Kong",
+  "39.1300_117.2000": "Tianjin",
+  "13.0900_80.2800": "Chennai",
+  "25.0358_121.5683": "Taipei",
+  "12.9700_77.5600": "Bangalore",
+  "13.7500_100.5166": "Bangkok",
+  "31.5600_74.3500": "Lahore",
+  "29.5650_106.5950": "Chongqing",
+  "25.7840_-80.2102": "Miami",
+  "17.4000_78.4800": "Hyderabad",
+  "32.7937_-96.7662": "Dallas-Fort Worth",
+  "-33.4500_-70.6670": "Santiago",
+  "40.0076_-75.1340": "Philadelphia",
+  "-19.9150_-43.9150": "Belo Horizonte",
+  "40.4000_-3.6834": "Madrid",
+  "29.7868_-95.3905": "Houston",
+  "23.0301_72.5800": "Ahmedabad",
+  "10.7800_106.6950": "Ho Chi Minh City",
+  "38.9047_-77.0163": "Washington, DC",
+  "33.7626_-84.4228": "Atlanta",
+  "43.7000_-79.4200": "Toronto",
+  "1.2930_103.8558": "Singapore",
+  "-8.8383_13.2344": "Luanda",
+  "33.3386_44.3939": "Baghdad",
+  "41.3833_2.1834": "Barcelona",
+  "22.5804_88.3299": "Howrah",
+  "41.8050_123.4500": "Shenyang",
+  "15.5881_32.5342": "Khartoum",
+  "18.5300_73.8500": "Pune",
+  "42.3188_-71.0846": "Boston",
+  "-33.9200_151.1852": "Sydney",
+  "59.9390_30.3160": "Saint Petersburg",
+  "22.3300_91.8000": "Chittagong",
+  "23.0489_113.7447": "Dongguan",
+  "24.6408_46.7727": "Riyadh",
+  "21.0333_105.8500": "Hanoi",
+  "20.6700_-103.3300": "Guadalajara",
+  "-37.8200_144.9750": "Melbourne",
+  "31.2000_29.9500": "Alexandria",
+  "30.6700_104.0700": "Chengdu",
+  "16.7834_96.1667": "Yangon",
+  "33.5722_-112.0891": "Phoenix",
+  "34.2750_108.8950": "Xi'an",
+  "-30.0500_-51.2000": "Porto Alegre",
+  "21.2000_72.8400": "Surat",
+  "23.0965_109.6091": "Guigang",
+  "5.3200_-4.0400": "Abidjan",
+  "-15.7833_-47.9161": "Brasília",
+  "39.9272_32.8644": "Ankara",
+  "25.6700_-100.3300": "Monterrey",
+  "35.3200_139.5800": "Yokohama",
+  "32.0500_118.7800": "Nanjing",
+  "45.5000_-73.5833": "Montreal",
+  "26.5800_106.7200": "Guiyang",
+  "-8.0756_-34.9156": "Recife",
+  "47.6211_-122.3244": "Seattle",
+  "45.7500_126.6500": "Harbin",
+  "37.7562_-122.4430": "San Francisco",
+  "-3.7500_-38.5800": "Fortaleza",
+  "24.5204_117.6700": "Xiamen",
+  "42.3834_-83.1024": "Detroit",
+  "-12.9700_-38.4800": "Salvador",
+  "35.0951_129.0100": "Busan",
+  "-26.1700_28.0300": "Johannesburg",
+  "52.5218_13.4015": "Berlin",
+  "36.7631_3.0506": "Algiers",
+  "41.8960_12.4833": "Rome",
+  "39.0194_125.7547": "Pyongyang"
+};
+
+
+const CURATED_TOP200_ADDITIONAL_LABELS = [
+  {
+    "name": "Kabul",
+    "lat": 34.5253,
+    "lng": 69.1783
+  },
+  {
+    "name": "Athens",
+    "lat": 37.9833,
+    "lng": 23.7333
+  },
+  {
+    "name": "Nagoya",
+    "lat": 35.1833,
+    "lng": 136.9
+  },
+  {
+    "name": "Cape Town",
+    "lat": -33.9258,
+    "lng": 18.4232
+  },
+  {
+    "name": "San Diego",
+    "lat": 32.8312,
+    "lng": -117.1225
+  },
+  {
+    "name": "Durban",
+    "lat": -29.8587,
+    "lng": 31.0218
+  },
+  {
+    "name": "Casablanca",
+    "lat": 33.5992,
+    "lng": -7.62
+  },
+  {
+    "name": "Dalian",
+    "lat": 38.9228,
+    "lng": 121.6298
+  },
+  {
+    "name": "Kanpur",
+    "lat": 26.4499,
+    "lng": 80.3319
+  },
+  {
+    "name": "Kano",
+    "lat": 12.0,
+    "lng": 8.5167
+  },
+  {
+    "name": "Tel Aviv–Yafo",
+    "lat": 32.08,
+    "lng": 34.7806
+  },
+  {
+    "name": "Addis Ababa",
+    "lat": 9.03,
+    "lng": 38.74
+  },
+  {
+    "name": "Curitiba",
+    "lat": -25.42,
+    "lng": -49.32
+  },
+  {
+    "name": "Zibo",
+    "lat": 36.8,
+    "lng": 118.05
+  },
+  {
+    "name": "Jeddah",
+    "lat": 21.5428,
+    "lng": 39.1728
+  },
+  {
+    "name": "Nairobi",
+    "lat": -1.2864,
+    "lng": 36.8172
+  },
+  {
+    "name": "Hangzhou",
+    "lat": 30.25,
+    "lng": 120.1675
+  },
+  {
+    "name": "Benoni",
+    "lat": -26.1496,
+    "lng": 28.3299
+  },
+  {
+    "name": "Caracas",
+    "lat": 10.5,
+    "lng": -66.9333
+  },
+  {
+    "name": "Milan",
+    "lat": 45.4669,
+    "lng": 9.19
+  },
+  {
+    "name": "Stuttgart",
+    "lat": 48.7775,
+    "lng": 9.18
+  },
+  {
+    "name": "Kunming",
+    "lat": 25.0433,
+    "lng": 102.7061
+  },
+  {
+    "name": "Dar es Salaam",
+    "lat": -6.8,
+    "lng": 39.2833
+  },
+  {
+    "name": "Minneapolis–Saint Paul",
+    "lat": 44.9635,
+    "lng": -93.2678
+  },
+  {
+    "name": "Jaipur",
+    "lat": 26.9167,
+    "lng": 75.8667
+  },
+  {
+    "name": "Taiyuan",
+    "lat": 37.8733,
+    "lng": 112.5425
+  },
+  {
+    "name": "Frankfurt",
+    "lat": 50.1136,
+    "lng": 8.6797
+  },
+  {
+    "name": "Qingdao",
+    "lat": 36.1167,
+    "lng": 120.4
+  },
+  {
+    "name": "Surabaya",
+    "lat": -7.2458,
+    "lng": 112.7378
+  },
+  {
+    "name": "Lisbon",
+    "lat": 38.7452,
+    "lng": -9.1604
+  },
+  {
+    "name": "Tampa–St. Petersburg",
+    "lat": 27.9942,
+    "lng": -82.4451
+  },
+  {
+    "name": "Jinan",
+    "lat": 36.6667,
+    "lng": 117.0
+  },
+  {
+    "name": "Fukuoka",
+    "lat": 33.5904,
+    "lng": 130.4017
+  },
+  {
+    "name": "Campinas",
+    "lat": -22.9,
+    "lng": -47.1
+  },
+  {
+    "name": "Denver",
+    "lat": 39.7621,
+    "lng": -104.8759
+  },
+  {
+    "name": "Kaohsiung",
+    "lat": 22.6333,
+    "lng": 120.2666
+  },
+  {
+    "name": "Quezon City",
+    "lat": 14.6504,
+    "lng": 121.03
+  },
+  {
+    "name": "Katowice",
+    "lat": 50.2604,
+    "lng": 19.02
+  },
+  {
+    "name": "Aleppo",
+    "lat": 36.2304,
+    "lng": 37.17
+  },
+  {
+    "name": "Urumqi",
+    "lat": 43.805,
+    "lng": 87.575
+  },
+  {
+    "name": "Yokohama",
+    "lat": 35.455,
+    "lng": 139.638
+  },
+  {
+    "name": "Kibanseke",
+    "lat": -4.4419,
+    "lng": 15.395
+  },
+  {
+    "name": "Mashhad",
+    "lat": 36.2605,
+    "lng": 59.6168
+  },
+  {
+    "name": "Jilin",
+    "lat": 43.85,
+    "lng": 126.55
+  },
+  {
+    "name": "Zhengzhou",
+    "lat": 34.7492,
+    "lng": 113.6605
+  },
+  {
+    "name": "Montevideo",
+    "lat": -34.858,
+    "lng": -56.1711
+  },
+  {
+    "name": "Tabriz",
+    "lat": 38.08,
+    "lng": 46.2919
+  },
+  {
+    "name": "Yaoundé",
+    "lat": 3.8667,
+    "lng": 11.5167
+  },
+  {
+    "name": "Douala",
+    "lat": 4.05,
+    "lng": 9.7
+  },
+  {
+    "name": "Monterrey",
+    "lat": 25.6667,
+    "lng": -100.3
+  },
+  {
+    "name": "Giza",
+    "lat": 30.01,
+    "lng": 31.19
+  },
+  {
+    "name": "Medellín",
+    "lat": 6.2447,
+    "lng": -75.5748
+  },
+  {
+    "name": "Kuwait City",
+    "lat": 29.3697,
+    "lng": 47.9783
+  },
+  {
+    "name": "Recife",
+    "lat": -8.05,
+    "lng": -34.9
+  },
+  {
+    "name": "Harare",
+    "lat": -17.8292,
+    "lng": 31.0522
+  },
+  {
+    "name": "Tai'an",
+    "lat": 36.2,
+    "lng": 117.12
+  },
+  {
+    "name": "Bandung",
+    "lat": -6.912,
+    "lng": 107.6097
+  },
+  {
+    "name": "Sapporo",
+    "lat": 43.0621,
+    "lng": 141.3544
+  },
+  {
+    "name": "Brasília",
+    "lat": -15.7833,
+    "lng": -47.9161
+  },
+  {
+    "name": "Porto Alegre",
+    "lat": -30.0331,
+    "lng": -51.23
+  },
+  {
+    "name": "Changchun",
+    "lat": 43.9,
+    "lng": 125.2
+  },
+  {
+    "name": "Lucknow",
+    "lat": 26.85,
+    "lng": 80.95
+  },
+  {
+    "name": "Wenzhou",
+    "lat": 27.9991,
+    "lng": 120.6561
+  },
+  {
+    "name": "Ibadan",
+    "lat": 7.3964,
+    "lng": 3.9167
+  },
+  {
+    "name": "Faisalabad",
+    "lat": 31.418,
+    "lng": 73.079
+  },
+  {
+    "name": "Fuzhou",
+    "lat": 26.0769,
+    "lng": 119.2917
+  },
+  {
+    "name": "Nanchang",
+    "lat": 28.6833,
+    "lng": 115.8833
+  },
+  {
+    "name": "Kumasi",
+    "lat": 6.7,
+    "lng": -1.625
+  },
+  {
+    "name": "Medan",
+    "lat": 3.5894,
+    "lng": 98.6739
+  },
+  {
+    "name": "Bamako",
+    "lat": 12.65,
+    "lng": -8.0
+  },
+  {
+    "name": "Bekasi",
+    "lat": -6.2349,
+    "lng": 106.9896
+  },
+  {
+    "name": "Guayaquil",
+    "lat": -2.1833,
+    "lng": -79.8833
+  },
+  {
+    "name": "Huizhou",
+    "lat": 23.1115,
+    "lng": 114.4152
+  },
+  {
+    "name": "Lanzhou",
+    "lat": 36.0611,
+    "lng": 103.8343
+  },
+  {
+    "name": "Cali",
+    "lat": 3.44,
+    "lng": -76.5197
+  },
+  {
+    "name": "Abuja",
+    "lat": 9.0667,
+    "lng": 7.4833
+  },
+  {
+    "name": "Sana'a",
+    "lat": 15.3483,
+    "lng": 44.2064
+  },
+  {
+    "name": "Dubai",
+    "lat": 25.2697,
+    "lng": 55.3095
+  },
+  {
+    "name": "Santa Cruz",
+    "lat": -17.8,
+    "lng": -63.1667
+  },
+  {
+    "name": "Linyi",
+    "lat": 35.0606,
+    "lng": 118.3425
+  },
+  {
+    "name": "Baku",
+    "lat": 40.3953,
+    "lng": 49.8822
+  },
+  {
+    "name": "Incheon",
+    "lat": 37.4761,
+    "lng": 126.6422
+  },
+  {
+    "name": "Ningbo",
+    "lat": 29.875,
+    "lng": 121.5492
+  },
+  {
+    "name": "Tashkent",
+    "lat": 41.3111,
+    "lng": 69.2797
+  },
+  {
+    "name": "Accra",
+    "lat": 5.55,
+    "lng": -0.2
+  },
+  {
+    "name": "Minsk",
+    "lat": 53.9,
+    "lng": 27.5667
+  },
+  {
+    "name": "Lusaka",
+    "lat": -15.4167,
+    "lng": 28.2833
+  },
+  {
+    "name": "Santo Domingo",
+    "lat": 18.4764,
+    "lng": -69.8933
+  },
+  {
+    "name": "Brasov",
+    "lat": 45.65,
+    "lng": 25.6
+  },
+  {
+    "name": "Bursa",
+    "lat": 40.1833,
+    "lng": 29.0667
+  },
+  {
+    "name": "Isfahan",
+    "lat": 32.6447,
+    "lng": 51.6675
+  },
+  {
+    "name": "Dakar",
+    "lat": 14.6928,
+    "lng": -17.4467
+  },
+  {
+    "name": "Tunis",
+    "lat": 36.8064,
+    "lng": 10.1817
+  },
+  {
+    "name": "Dalian",
+    "lat": 38.9,
+    "lng": 121.6
+  },
+  {
+    "name": "Lyon",
+    "lat": 45.76,
+    "lng": 4.84
+  },
+  {
+    "name": "Surat",
+    "lat": 21.1702,
+    "lng": 72.8311
+  },
+  {
+    "name": "Vadodara",
+    "lat": 22.3,
+    "lng": 73.2
+  },
+  {
+    "name": "Nagpur",
+    "lat": 21.1497,
+    "lng": 79.0806
+  },
+  {
+    "name": "Patna",
+    "lat": 25.61,
+    "lng": 85.1414
+  },
+  {
+    "name": "Indore",
+    "lat": 22.72,
+    "lng": 75.8472
+  },
+  {
+    "name": "Coimbatore",
+    "lat": 11.0168,
+    "lng": 76.9558
+  },
+  {
+    "name": "Kochi",
+    "lat": 9.9667,
+    "lng": 76.2833
+  },
+  {
+    "name": "Visakhapatnam",
+    "lat": 17.7333,
+    "lng": 83.3167
+  },
+  {
+    "name": "Agra",
+    "lat": 27.18,
+    "lng": 78.02
+  },
+  {
+    "name": "Bhopal",
+    "lat": 23.25,
+    "lng": 77.4167
+  },
+  {
+    "name": "Ludhiana",
+    "lat": 30.9,
+    "lng": 75.85
+  },
+  {
+    "name": "Madurai",
+    "lat": 9.9252,
+    "lng": 78.1198
+  },
+  {
+    "name": "Varanasi",
+    "lat": 25.3189,
+    "lng": 83.0128
+  },
+  {
+    "name": "Meerut",
+    "lat": 28.98,
+    "lng": 77.71
+  },
+  {
+    "name": "Rawalpindi",
+    "lat": 33.6,
+    "lng": 73.0333
+  },
+  {
+    "name": "Multan",
+    "lat": 30.1978,
+    "lng": 71.4711
+  },
+  {
+    "name": "Peshawar",
+    "lat": 34.0144,
+    "lng": 71.5675
+  },
+  {
+    "name": "Quetta",
+    "lat": 30.1833,
+    "lng": 67.0
+  },
+  {
+    "name": "Córdoba",
+    "lat": -31.4167,
+    "lng": -64.1833
+  },
+  {
+    "name": "Rosario",
+    "lat": -32.95,
+    "lng": -60.6667
+  },
+  {
+    "name": "Mendoza",
+    "lat": -32.8833,
+    "lng": -68.8167
+  },
+  {
+    "name": "Valparaíso",
+    "lat": -33.0472,
+    "lng": -71.6127
+  },
+  {
+    "name": "Barranquilla",
+    "lat": 10.9639,
+    "lng": -74.7964
+  },
+  {
+    "name": "Maracaibo",
+    "lat": 10.6333,
+    "lng": -71.6333
+  },
+  {
+    "name": "Quito",
+    "lat": -0.2186,
+    "lng": -78.5097
+  },
+  {
+    "name": "La Paz",
+    "lat": -16.5,
+    "lng": -68.15
+  },
+  {
+    "name": "Asunción",
+    "lat": -25.3,
+    "lng": -57.6333
+  },
+  {
+    "name": "San José",
+    "lat": 9.9281,
+    "lng": -84.0907
+  },
+  {
+    "name": "Guatemala City",
+    "lat": 14.6133,
+    "lng": -90.5353
+  },
+  {
+    "name": "San Salvador",
+    "lat": 13.6989,
+    "lng": -89.1914
+  },
+  {
+    "name": "Port-au-Prince",
+    "lat": 18.5425,
+    "lng": -72.3386
+  },
+  {
+    "name": "Havana",
+    "lat": 23.1367,
+    "lng": -82.3589
+  },
+  {
+    "name": "Santo Domingo",
+    "lat": 18.4861,
+    "lng": -69.9312
+  },
+  {
+    "name": "San Juan",
+    "lat": 18.4655,
+    "lng": -66.1057
+  },
+  {
+    "name": "Colombo",
+    "lat": 6.9167,
+    "lng": 79.8333
+  },
+  {
+    "name": "Kathmandu",
+    "lat": 27.7172,
+    "lng": 85.324
+  },
+  {
+    "name": "Mandalay",
+    "lat": 21.9588,
+    "lng": 96.0891
+  },
+  {
+    "name": "Phnom Penh",
+    "lat": 11.5696,
+    "lng": 104.921
+  },
+  {
+    "name": "Vientiane",
+    "lat": 17.9667,
+    "lng": 102.6
+  },
+  {
+    "name": "Ulaanbaatar",
+    "lat": 47.92,
+    "lng": 106.92
+  }
+];
+
+function nearbyCuratedAdditionalLabel(lat, lng) {
+  let best = null;
+  let bestScore = Infinity;
+  const latR = Number(lat) * Math.PI / 180;
+  const lngR = Number(lng) * Math.PI / 180;
+  for (const item of CURATED_TOP200_ADDITIONAL_LABELS) {
+    const clat = item.lat * Math.PI / 180;
+    const clng = item.lng * Math.PI / 180;
+    const dlat = clat - latR;
+    const dlng = clng - lngR;
+    const a = Math.sin(dlat / 2) ** 2 + Math.cos(latR) * Math.cos(clat) * Math.sin(dlng / 2) ** 2;
+    const dist = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    if (dist < bestScore) {
+      bestScore = dist;
+      best = item;
+    }
+  }
+  // Strict enough to avoid obvious wrong labels, loose enough for the source dataset's rounded city coordinates.
+  return best && bestScore < 0.035 ? best.name : null;
+}
+
+function top100CoordKey(lat, lng) {
+  return `${Number(lat).toFixed(4)}_${Number(lng).toFixed(4)}`;
+}
+
+function curatedPlaceLabel(lat, lng) {
+  return CURATED_TOP100_LABELS[top100CoordKey(lat, lng)] || nearbyCuratedAdditionalLabel(lat, lng) || null;
+}
+
+function approxCityName(lat, lng) {
+  // Trust rule: exact curated label only. Otherwise show coordinates, never a guessed city.
+  return curatedPlaceLabel(lat, lng) || `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
+}
+
+function setInstance(mesh, instanceId, meta, centerPos, height, radius, color) {
+  const normal = centerPos.clone().normalize();
+  tmpQuat.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+  tmpScale.set(radius, height, radius);
+  tmpMatrix.compose(centerPos, tmpQuat, tmpScale);
+  mesh.setMatrixAt(instanceId, tmpMatrix);
+  // Instance colors intentionally disabled; separate red/green materials control pillar color.
+  meta.centerPosition = centerPos.clone();
+  meta.topPosition = centerPos.clone().add(normal.clone().multiplyScalar(height * 0.5));
+}
+
+function disposeHealthInstances() {
   while (healthPillarsGroup.children.length) {
     const child = healthPillarsGroup.children.pop();
-    if (child.geometry) child.geometry.dispose();
+    if (child.dispose) child.dispose();
   }
+  greenInstances = null;
+  redInstances = null;
+}
+
+function rebuildHealthPillars(data) {
+  disposeHealthInstances();
 
   if (!data.length) return;
 
@@ -627,7 +1502,7 @@ function rebuildHealthPillars(data) {
   const rawWeightedAvg = rawShares.reduce((sum, share, idx) => sum + share * data[idx].pop, 0) / totalPop;
   const shareScale = rawWeightedAvg > 0 ? 0.20 / rawWeightedAvg : 1.0;
 
-  data.forEach((d, idx) => {
+  const prepared = data.map((d, idx) => {
     const popNorm = Math.sqrt(d.pop / maxPop);
     const totalHeight = 0.01 + popNorm * 0.24;
     const radius = 0.0025 + popNorm * 0.0095;
@@ -638,26 +1513,68 @@ function rebuildHealthPillars(data) {
 
     const base = latLonToVec(d.lat, d.lng, 1.0015);
     const normal = base.clone().normalize();
-    const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+    const pillarId = `${d.lat}_${d.lng}`;
+    const meta = { lat: d.lat, lng: d.lng, pop: d.pop, greenShare, redShare: 1 - greenShare, radius, pillarId, totalHeight };
 
-    if (greenHeight > 0.0005) {
-      const greenGeom = new THREE.CylinderGeometry(radius, radius, greenHeight, 10, 1, false);
-      const greenMesh = new THREE.Mesh(greenGeom, healthPillarMaterials.green);
-      greenMesh.userData.segmentType = 'positive';
-      greenMesh.quaternion.copy(quat);
-      greenMesh.position.copy(base.clone().add(normal.clone().multiplyScalar(greenHeight * 0.5)));
-      healthPillarsGroup.add(greenMesh);
-    }
-
-    if (redHeight > 0.0005) {
-      const redGeom = new THREE.CylinderGeometry(radius, radius, redHeight, 10, 1, false);
-      const redMesh = new THREE.Mesh(redGeom, healthPillarMaterials.red);
-      redMesh.userData.segmentType = 'negative';
-      redMesh.quaternion.copy(quat);
-      redMesh.position.copy(base.clone().add(normal.clone().multiplyScalar(greenHeight + redHeight * 0.5)));
-      healthPillarsGroup.add(redMesh);
-    }
+    return { base, normal, greenHeight, redHeight, radius, meta };
   });
+
+  const greenCount = prepared.filter(p => p.greenHeight > 0.0005).length;
+  const redCount = prepared.filter(p => p.redHeight > 0.0005).length;
+
+  greenInstances = new THREE.InstancedMesh(basePillarGeometry, healthPillarMaterials.green, Math.max(1, greenCount));
+  redInstances = new THREE.InstancedMesh(basePillarGeometry, healthPillarMaterials.red, Math.max(1, redCount));
+
+  greenInstances.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  redInstances.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+
+  greenInstances.userData.segmentType = 'positive';
+  redInstances.userData.segmentType = 'negative';
+  greenInstances.userData.metas = [];
+  redInstances.userData.metas = [];
+
+  let gi = 0;
+  let ri = 0;
+
+  for (const p of prepared) {
+    if (p.greenHeight > 0.0005) {
+      const center = p.base.clone().add(p.normal.clone().multiplyScalar(p.greenHeight * 0.5));
+      const meta = Object.assign({ segmentType: 'positive' }, p.meta);
+      setInstance(greenInstances, gi, meta, center, p.greenHeight, p.radius, HEALTH_GREEN);
+      greenInstances.userData.metas[gi] = meta;
+      gi++;
+    }
+
+    if (p.redHeight > 0.0005) {
+      const center = p.base.clone().add(p.normal.clone().multiplyScalar(p.greenHeight + p.redHeight * 0.5));
+      const meta = Object.assign({ segmentType: 'negative' }, p.meta);
+      setInstance(redInstances, ri, meta, center, p.redHeight, p.radius, HEALTH_RED);
+      redInstances.userData.metas[ri] = meta;
+      ri++;
+    }
+  }
+
+  greenInstances.instanceMatrix.needsUpdate = true;
+  redInstances.instanceMatrix.needsUpdate = true;
+  if (greenInstances.instanceColor) greenInstances.instanceColor.needsUpdate = true;
+  if (redInstances.instanceColor) redInstances.instanceColor.needsUpdate = true;
+
+  healthPillarsGroup.add(greenInstances);
+  healthPillarsGroup.add(redInstances);
+  updateHealthPillarVisibility();
+}
+
+function updateHealthPillarVisibility() {
+  healthPillarsGroup.visible = healthMode;
+  if (greenInstances) greenInstances.visible = healthMode && !healthOnlyNegative;
+  if (redInstances) redInstances.visible = healthMode && !healthOnlyPositive;
+
+  if (!healthMode) {
+    clearSelectedPillarOverlay();
+    setHealthInstanceOpacity(HEALTH_FOCUS_FULL_OPACITY);
+  } else if (selectedPillar) {
+    updatePillarSelectionFade();
+  }
 }
 
 fetch('https://raw.githubusercontent.com/vasturiano/globe.gl/master/example/datasets/world_population.csv')
@@ -677,7 +1594,10 @@ fetch('https://raw.githubusercontent.com/vasturiano/globe.gl/master/example/data
       }
     }
 
-    rebuildHealthPillars(data);
+    const allPillarsData = data
+      .slice()
+      .sort((a, b) => b.pop - a.pop);
+    rebuildHealthPillars(allPillarsData);
   })
   .catch(err => console.error('Error loading health pillar data:', err));
 
@@ -1021,6 +1941,7 @@ healthPositiveBtn.addEventListener('click', () => {
     healthOnlyNegative = false;
   }
   updateHealthFilterButtons();
+  updateHealthPillarVisibility();
 });
 
 healthNegativeBtn.addEventListener('click', () => {
@@ -1031,6 +1952,7 @@ healthNegativeBtn.addEventListener('click', () => {
     healthOnlyPositive = false;
   }
   updateHealthFilterButtons();
+  updateHealthPillarVisibility();
 });
 
 // ===== LOCATION =====
@@ -1128,6 +2050,196 @@ function updateEarthSpin() {
   earthGroup.rotation.y = (currentUtcFraction() * Math.PI * 2) - Math.PI;
 }
 
+
+let selectedPillar = null;
+const HEALTH_FOCUS_DIM_OPACITY = 0.22;
+const HEALTH_FOCUS_FULL_OPACITY = 0.96;
+const selectedPillarOverlayGroup = new THREE.Group();
+selectedPillarOverlayGroup.visible = false;
+selectedPillarOverlayGroup.renderOrder = 1000;
+earthGroup.add(selectedPillarOverlayGroup);
+const tooltip = document.getElementById('pillarTooltip');
+
+const pillarRing = new THREE.Mesh(
+  new THREE.RingGeometry(0.015, 0.025, 64),
+  new THREE.MeshBasicMaterial({ color: 0xffd700, side: THREE.DoubleSide, transparent: true, opacity: 0.98 })
+);
+pillarRing.rotation.x = -Math.PI / 2;
+pillarRing.visible = false;
+earthGroup.add(pillarRing);
+
+function healthSegmentColor(segmentType) {
+  return segmentType === 'positive' ? 0x16a34a : 0xdc2626;
+}
+
+function clearSelectedPillarOverlay() {
+  while (selectedPillarOverlayGroup.children.length) {
+    const child = selectedPillarOverlayGroup.children.pop();
+    if (child.geometry && child.geometry !== basePillarGeometry) child.geometry.dispose();
+    if (child.material) child.material.dispose();
+  }
+  selectedPillarOverlayGroup.visible = false;
+}
+
+function findSelectedPillarSegments(pillarId) {
+  const matches = [];
+  const sources = [greenInstances, redInstances].filter(Boolean);
+
+  for (const source of sources) {
+    const metas = source.userData.metas || [];
+    for (let i = 0; i < metas.length; i++) {
+      if (metas[i].pillarId === pillarId) {
+        matches.push({ source, instanceId: i, meta: metas[i] });
+      }
+    }
+  }
+
+  return matches;
+}
+
+function buildSelectedPillarOverlay(pillarId) {
+  clearSelectedPillarOverlay();
+  if (!pillarId) return;
+
+  const matches = findSelectedPillarSegments(pillarId);
+  const matrix = new THREE.Matrix4();
+
+  for (const match of matches) {
+    // Respect active positive/negative filters.
+    if (healthOnlyPositive && match.meta.segmentType !== 'positive') continue;
+    if (healthOnlyNegative && match.meta.segmentType !== 'negative') continue;
+
+    match.source.getMatrixAt(match.instanceId, matrix);
+
+    const overlay = new THREE.Mesh(
+      basePillarGeometry,
+      new THREE.MeshBasicMaterial({
+  color: healthSegmentColor(match.meta.segmentType),
+  transparent: true,
+  opacity: HEALTH_FOCUS_FULL_OPACITY,
+
+  // 👇 CRITICAL FIXES
+  depthTest: true,
+  depthWrite: true,
+
+  // prevents visual "doubling" / shimmer
+  polygonOffset: true,
+  polygonOffsetFactor: -1,
+  polygonOffsetUnits: -1
+})
+    );
+
+    overlay.matrixAutoUpdate = false;
+    overlay.matrix.copy(matrix);
+    overlay.renderOrder = 1001;
+    selectedPillarOverlayGroup.add(overlay);
+  }
+
+  selectedPillarOverlayGroup.visible = selectedPillarOverlayGroup.children.length > 0;
+}
+
+function setHealthInstanceOpacity(opacity) {
+  if (greenInstances) greenInstances.material.opacity = opacity;
+  if (redInstances) redInstances.material.opacity = opacity;
+}
+
+function updatePillarSelectionFade() {
+  if (!healthMode || !selectedPillar) {
+    setHealthInstanceOpacity(HEALTH_FOCUS_FULL_OPACITY);
+    clearSelectedPillarOverlay();
+    return;
+  }
+
+  // Fade the field while preserving the selected pillar at normal brightness.
+  // No pulse/glow/scale is applied to the pillar itself.
+  setHealthInstanceOpacity(HEALTH_FOCUS_DIM_OPACITY);
+  buildSelectedPillarOverlay(selectedPillar);
+}
+
+function showTooltip(meta, x, y) {
+  const city = approxCityName(meta.lat, meta.lng);
+  const greenPct = Math.round((meta.greenShare || 0) * 100);
+  const redPct = Math.max(0, 100 - greenPct);
+
+  tooltip.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:9px;">
+      <div style="font-size:17px;font-weight:700;color:#ffffff;line-height:1.15;">
+        ${city}
+      </div>
+
+      <div style="font-size:11px;color:#bcd0f5;">
+        ${meta.lat.toFixed(4)}, ${meta.lng.toFixed(4)}
+      </div>
+
+      <div style="height:1px;background:linear-gradient(90deg, rgba(255,255,255,.16), rgba(255,255,255,.04));margin:2px 0;"></div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:11px;color:#9fb3d9;">Population</span>
+        <span style="font-size:13px;font-weight:650;color:#eef4ff;">${Math.round(meta.pop).toLocaleString()}</span>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
+        <span style="font-size:11px;color:#9fb3d9;">Sentiment</span>
+        <span style="font-size:10px;color:#d9e5ff;">Positive / Negative</span>
+      </div>
+
+      <div style="height:11px;width:100%;background:rgba(255,255,255,.075);border:1px solid rgba(255,255,255,.055);border-radius:999px;overflow:hidden;box-shadow:inset 0 0 12px rgba(0,0,0,.22);">
+        <div id="tooltipGreenBar" style="height:100%;width:0%;background:linear-gradient(90deg,#16a34a,#34d399);float:left;transition:width 320ms ease;"></div>
+        <div id="tooltipRedBar" style="height:100%;width:0%;background:linear-gradient(90deg,#dc2626,#fb7185);float:left;transition:width 320ms ease;"></div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;font-size:10px;">
+        <span style="color:#86efac;">Positive ${greenPct}%</span>
+        <span style="color:#fca5a5;">Negative ${redPct}%</span>
+      </div>
+    </div>
+  `;
+
+  tooltip.style.display = 'block';
+  tooltip.style.left = Math.min(window.innerWidth - 260, x + 14) + 'px';
+  tooltip.style.top = Math.min(window.innerHeight - 190, y + 14) + 'px';
+
+  requestAnimationFrame(() => {
+    const greenBar = document.getElementById('tooltipGreenBar');
+    const redBar = document.getElementById('tooltipRedBar');
+    if (greenBar) greenBar.style.width = greenPct + '%';
+    if (redBar) redBar.style.width = redPct + '%';
+  });
+}
+
+function clearSelection() {
+  selectedPillar = null;
+  pillarRing.visible = false;
+  tooltip.style.display = 'none';
+  updatePillarSelectionFade();
+}
+
+function selectPillarFromInstance(mesh, instanceId, x, y) {
+  const meta = (mesh.userData.metas || [])[instanceId];
+  if (!meta) return;
+
+  selectedPillar = meta.pillarId;
+
+  const matches = findSelectedPillarSegments(selectedPillar);
+  let topPosition = meta.topPosition;
+  for (const match of matches) {
+    if (!topPosition || match.meta.topPosition.lengthSq() > topPosition.lengthSq()) {
+      topPosition = match.meta.topPosition;
+    }
+  }
+
+  const radius = Math.max(0.012, (meta.radius || 0.008) * 1.9);
+  if (pillarRing.geometry) pillarRing.geometry.dispose();
+  pillarRing.geometry = new THREE.RingGeometry(radius, radius + 0.006, 64);
+
+  pillarRing.position.copy(topPosition);
+  pillarRing.lookAt(new THREE.Vector3(0, 0, 0));
+  pillarRing.visible = true;
+
+  updatePillarSelectionFade();
+  showTooltip(meta, x, y);
+}
+
 // ===== INTERACTION =====
 let dragging = false, lastX = 0, lastY = 0, pointerMoved = false;
 
@@ -1146,7 +2258,9 @@ canvas.addEventListener('pointermove', (e) => {
   updateCamera();
 });
 canvas.addEventListener('pointerup', (e) => {
-  if (!pointerMoved) {
+  // Systems should only be clickable in Show Energy mode.
+  // In Show Health mode, pillar clicks are handled by the separate health click handler.
+  if (!pointerMoved && connectionsMode && !healthMode) {
     projectPointer(e);
     raycaster.setFromCamera(pointer, camera);
     const intersectedSystem = clickableSystems.find(system => raycaster.intersectObject(system.dome, false).length);
@@ -1166,6 +2280,22 @@ canvas.addEventListener('wheel', (e) => {
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight); camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix(); updateCamera();
+});
+
+
+canvas.addEventListener('click', (e) => {
+  if (!healthMode) return;
+
+  projectPointer(e);
+  raycaster.setFromCamera(pointer, camera);
+  const targets = [greenInstances, redInstances].filter(mesh => mesh && mesh.visible);
+  const intersects = raycaster.intersectObjects(targets, false);
+
+  if (intersects.length > 0 && intersects[0].instanceId !== undefined) {
+    selectPillarFromInstance(intersects[0].object, intersects[0].instanceId, e.clientX, e.clientY);
+  } else {
+    clearSelection();
+  }
 });
 
 document.addEventListener('keydown', (e) => {
@@ -1189,17 +2319,11 @@ function animate() {
   nightMaterial.uniforms.uMode.value += (targetMode - nightMaterial.uniforms.uMode.value) * 0.1;
   auroraMaterial.uniforms.uMode.value = nightMaterial.uniforms.uMode.value;
 
-  healthPillarsGroup.visible = healthMode;
-  if (healthMode) {
-    for (const child of healthPillarsGroup.children) {
-      if (healthOnlyPositive) {
-        child.visible = child.userData.segmentType === 'positive';
-      } else if (healthOnlyNegative) {
-        child.visible = child.userData.segmentType === 'negative';
-      } else {
-        child.visible = true;
-      }
-    }
+  updateHealthPillarVisibility();
+  if (!healthMode) {
+    if (pillarRing) pillarRing.visible = false;
+    if (tooltip) tooltip.style.display = 'none';
+    selectedPillar = null;
   }
 
   const elevateBlendRate = elevatedMode ? 0.01 : 0.005;
@@ -1302,7 +2426,7 @@ function animate() {
     arc.tubeCore.visible = showArc;
     arc.tubeGlow.visible = showArc;
 
-    if (!targetSystem) return;
+    if (!showArc) return;
 
     updateArcPositions(focusedSystem.currentAnchor, targetSystem.currentAnchor, arc);
 
@@ -1323,6 +2447,14 @@ function animate() {
   const sunPulse = 1 + Math.sin(t * 0.55) * 0.035;
   sunGlow.scale.set(1.28 * sunPulse, 1.28 * sunPulse, 1);
   raysGroup.rotation.z += 0.0008;
+
+  if (pillarRing && pillarRing.visible) {
+    const ringPulse = 1.0 + Math.sin(t * 2.2) * 0.055;
+    pillarRing.scale.set(ringPulse, ringPulse, ringPulse);
+    pillarRing.material.opacity = 0.78 + (0.5 + 0.5 * Math.sin(t * 2.2)) * 0.22;
+  } else if (pillarRing) {
+    pillarRing.scale.set(1, 1, 1);
+  }
 
   if (moon) orientMoonTowardEarth(moon);
 
