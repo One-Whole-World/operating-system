@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>globe.take75 — Expanded Synchronized Pulses & Health Heatmap</title>
+<title>Friendship Earth Status</title>
 <style>
 html,body{margin:0;overflow:hidden;background:black}
 canvas{display:block}
@@ -277,6 +277,42 @@ body.health-panel-mode #openFiltersBtn.visible{
   background:rgba(255,255,255,.20);
 }
 
+#healthClusterBtn{
+  width:100%;
+  border-radius:10px;
+  padding:10px 12px;
+  cursor:pointer;
+  font-weight:600;
+  background:rgba(255,255,255,.06);
+  color:#facc15;
+  border:2px solid rgba(250,204,21,.72);
+}
+#healthClusterBtn.active{
+  background:rgba(250,204,21,.88);
+  color:#111827;
+  border-color:#facc15;
+}
+body:not(.health-panel-mode) #healthClusterBtn{
+  display:none !important;
+}
+
+#cityHoverFlag{
+  position:fixed;
+  z-index:48;
+  display:none;
+  pointer-events:none;
+  padding:6px 9px;
+  border-radius:999px;
+  background:rgba(8,12,24,.84);
+  border:1px solid rgba(255,255,255,.16);
+  color:#ffffff;
+  font:600 11px/1 Inter,system-ui,sans-serif;
+  box-shadow:0 10px 28px rgba(0,0,0,.28);
+  backdrop-filter:blur(10px);
+  white-space:nowrap;
+  transform:translate(12px, -28px);
+}
+
 </style>
 </head>
 <body>
@@ -297,6 +333,7 @@ body.health-panel-mode #openFiltersBtn.visible{
     <button id="elevateBtn">Ascend</button>
     <button id="healthPositiveBtn">Show Only Positive</button>
     <button id="healthNegativeBtn">Show Only Negative</button>
+    <button id="healthClusterBtn">Cluster Cities</button>
     <div id="pillarHeightRangeControl">
       <div id="pillarHeightRangeTitle">Column Height Range</div>
       <div id="pillarHeightSliderWrap">
@@ -306,7 +343,7 @@ body.health-panel-mode #openFiltersBtn.visible{
         <input id="pillarHeightRangeMin" class="pillarHeightRangeInput" type="range" min="0" max="100" value="0" step="1">
         <input id="pillarHeightRangeMax" class="pillarHeightRangeInput" type="range" min="0" max="100" value="100" step="1">
       </div>
-      <div id="pillarHeightRangeReadout">Showing 0th – 100th percentile height</div>
+      <div id="pillarHeightRangeReadout">Showing 0th – 100th percentile column height</div>
       <div id="pillarHeightRangeCount">All columns</div>
     </div>
   </div>
@@ -330,6 +367,7 @@ min-width:220px;
 box-shadow:0 18px 44px rgba(0,0,0,.38);
 backdrop-filter:blur(12px);
 "></div>
+<div id="cityHoverFlag"></div>
 
 <script>
 const canvas = document.getElementById('c');
@@ -374,6 +412,7 @@ const showConnectionsBtn = document.getElementById('showConnectionsBtn');
 const showHealthBtn = document.getElementById('showHealthBtn');
 const healthPositiveBtn = document.getElementById('healthPositiveBtn');
 const healthNegativeBtn = document.getElementById('healthNegativeBtn');
+const healthClusterBtn = document.getElementById('healthClusterBtn');
 const openFiltersBtn = document.getElementById('openFiltersBtn');
 const pillarHeightRangeMin = document.getElementById('pillarHeightRangeMin');
 const pillarHeightRangeMax = document.getElementById('pillarHeightRangeMax');
@@ -401,6 +440,8 @@ let pillarHeightPercentMin = 0;
 let pillarHeightPercentMax = 100;
 let fullPopulationDataset = [];
 let fullPopulationMaxPop = 0;
+let healthClusterMode = false;
+const HEALTH_CLUSTER_DEGREES = 2.5;
 let elevatedMode = false;
 let elevateBlend = 0.0;
 let elevateTransitionActive = false;
@@ -463,8 +504,9 @@ function startFormationRetarget(newFocusSystem) {
 function enterHealthPanelMode() {
   document.body.classList.add('health-panel-mode');
   inspectTitle.textContent = 'Health Filters';
-  inspectSubtitle.textContent = 'Filter positive, negative, and pillar height.';
+  inspectSubtitle.textContent = 'Filter positive, negative, and column height.';
   updateHealthFilterButtons();
+  updateHealthClusterButton();
   inspectPanel.classList.add('visible');
   if (openFiltersBtn) openFiltersBtn.classList.remove('visible');
 }
@@ -693,14 +735,79 @@ scene.add(moonOrbitGroup);
 let moon = null;
 const moonDistance = 1.72;
 
-function getCurrentMoonAngle() {
-  const now = new Date();
-  const synodicMonthDays = 29.530588853;
-  const referenceNewMoon = Date.UTC(2000, 0, 6, 18, 14, 0);
-  const phase = (((now.getTime() - referenceNewMoon) / 86400000) % synodicMonthDays + synodicMonthDays) % synodicMonthDays / synodicMonthDays;
-  return phase * Math.PI * 2;
+function degToRad(deg) {
+  return deg * Math.PI / 180;
 }
-const moonAngle = getCurrentMoonAngle();
+
+function normalizeDeg(deg) {
+  return ((deg % 360) + 360) % 360;
+}
+
+function getApproxMoonScenePosition(distance = moonDistance) {
+  // Low-precision geocentric lunar model.
+  // This is not ephemeris-grade, but it is much better than placing the Moon only by synodic age.
+  // It keeps the Moon's visual position consistent with the current Sun-Moon elongation.
+  const now = new Date();
+  const d = (now.getTime() - Date.UTC(2000, 0, 1, 12, 0, 0)) / 86400000;
+
+  // Approximate Sun ecliptic longitude.
+  const sunMeanAnomaly = normalizeDeg(357.529 + 0.98560028 * d);
+  const sunMeanLongitude = normalizeDeg(280.459 + 0.98564736 * d);
+  const sunLongitude = normalizeDeg(
+    sunMeanLongitude +
+    1.915 * Math.sin(degToRad(sunMeanAnomaly)) +
+    0.020 * Math.sin(degToRad(2 * sunMeanAnomaly))
+  );
+
+  // Approximate Moon ecliptic longitude/latitude.
+  const L = normalizeDeg(218.316 + 13.176396 * d);       // mean longitude
+  const Mm = normalizeDeg(134.963 + 13.064993 * d);      // Moon mean anomaly
+  const D = normalizeDeg(297.850 + 12.190749 * d);       // mean elongation
+  const F = normalizeDeg(93.272 + 13.229350 * d);        // argument of latitude
+
+  const moonLongitude = normalizeDeg(
+    L +
+    6.289 * Math.sin(degToRad(Mm)) +
+    1.274 * Math.sin(degToRad(2 * D - Mm)) +
+    0.658 * Math.sin(degToRad(2 * D)) +
+    0.214 * Math.sin(degToRad(2 * Mm)) -
+    0.186 * Math.sin(degToRad(sunMeanAnomaly))
+  );
+
+  const moonLatitude =
+    5.128 * Math.sin(degToRad(F)) +
+    0.280 * Math.sin(degToRad(Mm + F)) +
+    0.277 * Math.sin(degToRad(Mm - F)) +
+    0.173 * Math.sin(degToRad(2 * D - F));
+
+  const elongation = degToRad(normalizeDeg(moonLongitude - sunLongitude));
+  const latRad = degToRad(moonLatitude);
+
+  // In this scene the Sun is anchored along sun.position.
+  // New Moon: Moon near Sun direction.
+  // First Quarter: Moon roughly 90 degrees from Sun.
+  // Full Moon: Moon opposite Sun.
+  const sunDir = sun.position.clone().normalize();
+  const up = new THREE.Vector3(0, 1, 0);
+  let orbitRight = new THREE.Vector3().crossVectors(up, sunDir).normalize();
+  if (orbitRight.lengthSq() < 0.0001) {
+    orbitRight = new THREE.Vector3(1, 0, 0);
+  }
+  const orbitUp = new THREE.Vector3().crossVectors(sunDir, orbitRight).normalize();
+
+  const inPlane = sunDir.clone().multiplyScalar(Math.cos(elongation))
+    .add(orbitRight.clone().multiplyScalar(Math.sin(elongation)));
+
+  const finalDir = inPlane.clone().multiplyScalar(Math.cos(latRad))
+    .add(orbitUp.clone().multiplyScalar(Math.sin(latRad)))
+    .normalize();
+
+  console.log(
+    `🌙 Moon position updated. Elongation from Sun: ${normalizeDeg(moonLongitude - sunLongitude).toFixed(1)}°, latitude: ${moonLatitude.toFixed(1)}°`
+  );
+
+  return finalDir.multiplyScalar(distance);
+}
 
 function orientMoonTowardEarth(moonMesh) {
   if (!moonMesh) return;
@@ -712,7 +819,7 @@ const loader = new THREE.TextureLoader();
 const moonTexture = loader.load('https://threejs.org/examples/textures/planets/moon_1024.jpg');
 moon = new THREE.Mesh(new THREE.SphereGeometry(0.072, 48, 48), new THREE.MeshPhongMaterial({ map: moonTexture, shininess: 2 }));
 moonOrbitGroup.add(moon);
-moon.position.set(Math.cos(moonAngle) * moonDistance, 0.10 * Math.sin(moonAngle * 0.7), Math.sin(moonAngle) * moonDistance);
+moon.position.copy(getApproxMoonScenePosition(moonDistance));
 orientMoonTowardEarth(moon);
 
 // ===== EARTH =====
@@ -792,6 +899,14 @@ const HEALTH_INSTANCE_DIM = new THREE.Color(HEALTH_DIM_FACTOR, HEALTH_DIM_FACTOR
 
 let greenInstances = null;
 let redInstances = null;
+
+// Smooth rebuild transition.
+// Keeps the instanced architecture, but grows newly-built columns upward from the surface.
+let healthTransitionActive = false;
+let healthTransitionStart = 0;
+const HEALTH_TRANSITION_DURATION_MS = 520;
+let healthTransitionSegments = [];
+let animateNextHealthRebuild = true;
 
 const healthPillarMaterials = {
   // Final color fix:
@@ -1646,6 +1761,27 @@ function setInstance(mesh, instanceId, meta, centerPos, height, radius, color) {
   // Instance colors intentionally disabled; separate red/green materials control pillar color.
   meta.centerPosition = centerPos.clone();
   meta.topPosition = centerPos.clone().add(normal.clone().multiplyScalar(height * 0.5));
+  meta.segmentHeight = height;
+  meta.segmentRadius = radius;
+  meta.segmentNormal = normal.clone();
+  meta.segmentBasePosition = centerPos.clone().add(normal.clone().multiplyScalar(-height * 0.5));
+}
+
+function setAnimatedInstanceHeight(mesh, instanceId, meta, heightScale) {
+  const normal = meta.segmentNormal;
+  const height = Math.max(0.000001, meta.segmentHeight * heightScale);
+  const radius = meta.segmentRadius;
+
+  // Anchor the segment at its original base so it grows outward/upward, not from the middle.
+  const center = meta.segmentBasePosition.clone().add(normal.clone().multiplyScalar(height * 0.5));
+
+  tmpQuat.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+  tmpScale.set(radius, height, radius);
+  tmpMatrix.compose(center, tmpQuat, tmpScale);
+  mesh.setMatrixAt(instanceId, tmpMatrix);
+
+  meta.centerPosition = center.clone();
+  meta.topPosition = center.clone().add(normal.clone().multiplyScalar(height * 0.5));
 }
 
 function disposeHealthInstances() {
@@ -1655,6 +1791,8 @@ function disposeHealthInstances() {
   }
   greenInstances = null;
   redInstances = null;
+  healthTransitionSegments = [];
+  healthTransitionActive = false;
 }
 
 function rebuildHealthPillars(data) {
@@ -1688,6 +1826,8 @@ function rebuildHealthPillars(data) {
       cityAscii: d.cityAscii || null,
       adminName: d.adminName || null,
       placeLabel: d.placeLabel || d.city || d.cityAscii || d.adminName || null,
+      isCluster: !!d.isCluster,
+      clusterCount: d.clusterCount || 1,
       lat: d.lat,
       lng: d.lng,
       pop: d.pop,
@@ -1743,7 +1883,63 @@ function rebuildHealthPillars(data) {
 
   healthPillarsGroup.add(greenInstances);
   healthPillarsGroup.add(redInstances);
+
+  healthTransitionSegments = [];
+
+  if (animateNextHealthRebuild) {
+    // Build transition list after final matrices exist, then collapse columns to zero height.
+    if (greenInstances) {
+      const metas = greenInstances.userData.metas || [];
+      for (let i = 0; i < metas.length; i++) {
+        healthTransitionSegments.push({ mesh: greenInstances, instanceId: i, meta: metas[i] });
+        setAnimatedInstanceHeight(greenInstances, i, metas[i], 0.001);
+      }
+      greenInstances.instanceMatrix.needsUpdate = true;
+    }
+
+    if (redInstances) {
+      const metas = redInstances.userData.metas || [];
+      for (let i = 0; i < metas.length; i++) {
+        healthTransitionSegments.push({ mesh: redInstances, instanceId: i, meta: metas[i] });
+        setAnimatedInstanceHeight(redInstances, i, metas[i], 0.001);
+      }
+      redInstances.instanceMatrix.needsUpdate = true;
+    }
+
+    healthTransitionStart = performance.now();
+    healthTransitionActive = true;
+  } else {
+    healthTransitionActive = false;
+    healthTransitionSegments = [];
+  }
+
+  // Reset default so non-slider rebuilds, like clustering, can animate.
+  animateNextHealthRebuild = true;
+
   updateHealthPillarVisibility();
+}
+
+
+function updateHealthColumnTransition() {
+  if (!healthTransitionActive || !healthTransitionSegments.length) return;
+
+  const elapsed = performance.now() - healthTransitionStart;
+  const raw = Math.min(1, elapsed / HEALTH_TRANSITION_DURATION_MS);
+
+  // Smooth ease-out: quick lift, gentle settle.
+  const eased = 1 - Math.pow(1 - raw, 3);
+
+  for (const seg of healthTransitionSegments) {
+    setAnimatedInstanceHeight(seg.mesh, seg.instanceId, seg.meta, eased);
+  }
+
+  if (greenInstances) greenInstances.instanceMatrix.needsUpdate = true;
+  if (redInstances) redInstances.instanceMatrix.needsUpdate = true;
+
+  if (raw >= 1) {
+    healthTransitionActive = false;
+    healthTransitionSegments = [];
+  }
 }
 
 function updateHealthPillarVisibility() {
@@ -1805,16 +2001,93 @@ function updatePillarHeightRangeUI(filteredCount = null) {
 
   if (pillarHeightRangeReadout) {
     pillarHeightRangeReadout.textContent =
-      `Showing ${pillarHeightPercentMin}th – ${pillarHeightPercentMax}th percentile height`;
+      `Showing ${pillarHeightPercentMin}th – ${pillarHeightPercentMax}th percentile column height`;
   }
 
   if (pillarHeightRangeCount) {
     const total = fullPopulationDataset.length;
     const count = filteredCount === null ? total : filteredCount;
+    const unit = healthClusterMode ? 'clustered columns' : 'columns';
     pillarHeightRangeCount.textContent = total
-      ? `${count.toLocaleString()} of ${total.toLocaleString()} columns`
+      ? `${count.toLocaleString()} of ${total.toLocaleString()} ${unit}`
       : 'Loading columns…';
   }
+}
+
+
+function clusterHealthCities(data, cellDegrees = HEALTH_CLUSTER_DEGREES) {
+  if (!healthClusterMode || !data.length) return data;
+
+  const clusters = new Map();
+
+  for (const d of data) {
+    const latCell = Math.floor((d.lat + 90) / cellDegrees);
+    const lngCell = Math.floor((d.lng + 180) / cellDegrees);
+    const key = `${latCell}_${lngCell}`;
+
+    let cluster = clusters.get(key);
+    if (!cluster) {
+      cluster = {
+        latWeighted: 0,
+        lngWeighted: 0,
+        pop: 0,
+        cityCount: 0,
+        largestCity: null,
+        largestPop: -Infinity
+      };
+      clusters.set(key, cluster);
+    }
+
+    const pop = Number.isFinite(d.pop) ? d.pop : 0;
+    cluster.pop += pop;
+    cluster.latWeighted += d.lat * pop;
+    cluster.lngWeighted += d.lng * pop;
+    cluster.cityCount += 1;
+
+    if (pop > cluster.largestPop) {
+      cluster.largestPop = pop;
+      cluster.largestCity = d;
+    }
+  }
+
+  const result = [];
+
+  for (const cluster of clusters.values()) {
+    if (!cluster.pop || !cluster.largestCity) continue;
+
+    const labelBase =
+      cluster.largestCity.placeLabel ||
+      cluster.largestCity.city ||
+      cluster.largestCity.cityAscii ||
+      cluster.largestCity.adminName ||
+      'Region';
+
+    const placeLabel = cluster.cityCount > 1
+      ? `${labelBase} region`
+      : labelBase;
+
+    result.push({
+      id: `cluster_${result.length}`,
+      source: 'cluster',
+      city: placeLabel,
+      cityAscii: placeLabel,
+      adminName: cluster.largestCity.adminName || null,
+      placeLabel,
+      lat: cluster.latWeighted / cluster.pop,
+      lng: cluster.lngWeighted / cluster.pop,
+      pop: cluster.pop,
+      isCluster: cluster.cityCount > 1,
+      clusterCount: cluster.cityCount
+    });
+  }
+
+  return result.sort((a, b) => b.pop - a.pop);
+}
+
+function updateHealthClusterButton() {
+  if (!healthClusterBtn) return;
+  healthClusterBtn.classList.toggle('active', healthClusterMode);
+  healthClusterBtn.textContent = healthClusterMode ? 'Show Raw Cities' : 'Cluster Cities';
 }
 
 function updatePillarHeightPercentileFilter() {
@@ -1826,12 +2099,14 @@ function updatePillarHeightPercentileFilter() {
   clearSelection();
 
   const filtered = filteredPopulationByHeightPercentile();
-  rebuildHealthPillars(filtered);
-  updatePillarHeightRangeUI(filtered.length);
+  const displayData = clusterHealthCities(filtered);
+  rebuildHealthPillars(displayData);
+  updatePillarHeightRangeUI(displayData.length);
 }
 
 function handlePillarHeightRangeInput() {
   clampPillarHeightHandles();
+  animateNextHealthRebuild = false;
   updatePillarHeightPercentileFilter();
 }
 
@@ -2340,6 +2615,13 @@ healthNegativeBtn.addEventListener('click', () => {
   updateHealthPillarVisibility();
 });
 
+healthClusterBtn.addEventListener('click', () => {
+  healthClusterMode = !healthClusterMode;
+  updateHealthClusterButton();
+  animateNextHealthRebuild = true;
+  updatePillarHeightPercentileFilter();
+});
+
 // ===== LOCATION =====
 const lat = 15.5588;
 const lon = 73.7700;
@@ -2444,6 +2726,7 @@ selectedPillarOverlayGroup.visible = false;
 selectedPillarOverlayGroup.renderOrder = 1000;
 earthGroup.add(selectedPillarOverlayGroup);
 const tooltip = document.getElementById('pillarTooltip');
+const cityHoverFlag = document.getElementById('cityHoverFlag');
 
 const pillarRing = new THREE.Mesh(
   new THREE.RingGeometry(0.015, 0.025, 64),
@@ -2557,6 +2840,8 @@ function showTooltip(meta, x, y) {
         ${meta.lat.toFixed(4)}, ${meta.lng.toFixed(4)}
       </div>
 
+      ${meta.isCluster ? `<div style="font-size:11px;color:#facc15;">Cluster of ${meta.clusterCount.toLocaleString()} cities</div>` : ''}
+
       <div style="height:1px;background:linear-gradient(90deg, rgba(255,255,255,.16), rgba(255,255,255,.04));margin:2px 0;"></div>
 
       <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -2605,6 +2890,7 @@ function clearSelection() {
   selectedPillar = null;
   pillarRing.visible = false;
   tooltip.style.display = 'none';
+  hideCityHoverFlag();
   updatePillarSelectionFade();
 }
 
@@ -2630,8 +2916,26 @@ function selectPillarFromInstance(mesh, instanceId, x, y) {
   pillarRing.lookAt(new THREE.Vector3(0, 0, 0));
   pillarRing.visible = true;
 
+  hideCityHoverFlag();
   updatePillarSelectionFade();
   showTooltip(meta, x, y);
+}
+
+
+function hoverPlaceLabel(meta) {
+  return meta.placeLabel || meta.city || meta.cityAscii || meta.adminName || approxCityName(meta.lat, meta.lng);
+}
+
+function showCityHoverFlag(meta, x, y) {
+  if (!cityHoverFlag || !healthMode || !meta) return;
+  cityHoverFlag.textContent = hoverPlaceLabel(meta);
+  cityHoverFlag.style.left = x + 'px';
+  cityHoverFlag.style.top = y + 'px';
+  cityHoverFlag.style.display = 'block';
+}
+
+function hideCityHoverFlag() {
+  if (cityHoverFlag) cityHoverFlag.style.display = 'none';
 }
 
 // ===== INTERACTION =====
@@ -2644,6 +2948,23 @@ canvas.addEventListener('pointerdown', (e) => {
   dragging = true; pointerMoved = false; lastX = e.clientX; lastY = e.clientY;
 });
 canvas.addEventListener('pointermove', (e) => {
+  if (!dragging && healthMode) {
+    projectPointer(e);
+    raycaster.setFromCamera(pointer, camera);
+    const targets = [greenInstances, redInstances].filter(mesh => mesh && mesh.visible);
+    const intersects = raycaster.intersectObjects(targets, false);
+
+    if (intersects.length > 0 && intersects[0].instanceId !== undefined) {
+      const meta = (intersects[0].object.userData.metas || [])[intersects[0].instanceId];
+      showCityHoverFlag(meta, e.clientX, e.clientY);
+    } else {
+      hideCityHoverFlag();
+    }
+    return;
+  }
+
+  hideCityHoverFlag();
+
   if (!dragging) return;
   const dx = e.clientX - lastX, dy = e.clientY - lastY;
   if (Math.abs(dx) > 2 || Math.abs(dy) > 2) pointerMoved = true;
@@ -2666,7 +2987,7 @@ canvas.addEventListener('pointerup', (e) => {
   }
   dragging = false;
 });
-canvas.addEventListener('pointerleave', () => dragging = false);
+canvas.addEventListener('pointerleave', () => { dragging = false; hideCityHoverFlag(); });
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault(); orbit.radius += e.deltaY * 0.001; orbit.radius = Math.max(1.6, Math.min(5, orbit.radius)); updateCamera();
 }, { passive: false });
@@ -2720,9 +3041,11 @@ function animate() {
   auroraMaterial.uniforms.uMode.value = nightMaterial.uniforms.uMode.value;
 
   updateHealthPillarVisibility();
+  if (healthMode) updateHealthColumnTransition();
   if (!healthMode) {
     if (pillarRing) pillarRing.visible = false;
     if (tooltip) tooltip.style.display = 'none';
+    hideCityHoverFlag();
     selectedPillar = null;
   }
 
