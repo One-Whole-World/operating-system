@@ -3830,11 +3830,11 @@ function updateSelectedRingScaleForZoom() {
 let dragging = false, lastX = 0, lastY = 0, pointerMoved = false;
 const DRAG_THRESHOLD = 5;
 
-// ===== TAKE292 MOBILE TOUCH / PINCH ZOOM =====
-// Mobile behavior:
-// - one finger drag keeps existing globe rotation
+// ===== TAKE293 MOBILE TOUCH / PINCH ZOOM =====
+// Added on top of Take291 only.
+// - one finger drag keeps the existing globe rotation
 // - two-finger pinch zooms in/out
-// - existing 3D→2D transition threshold is unchanged
+// - existing 3D→2D transition threshold remains unchanged
 let mobilePinching = false;
 let mobileLastPinchDistance = 0;
 
@@ -4463,8 +4463,8 @@ function animate() {
 
   const isConn = connectionsMode;
   
-  // Keep Energy mode cinematic, but make Health mode surface more readable.
-  const targetMode = isConn ? 1.0 : (healthMode ? 0.69 : 0.0);
+  // Keep Energy mode cinematic. Health mode keeps the same Earth day/night view as default.
+  const targetMode = isConn ? 1.0 : 0.0;
   nightMaterial.uniforms.uMode.value += (targetMode - nightMaterial.uniforms.uMode.value) * 0.1;
   auroraMaterial.uniforms.uMode.value = nightMaterial.uniforms.uMode.value;
 
