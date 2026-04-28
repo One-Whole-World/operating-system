@@ -484,7 +484,7 @@ const TARGET_CONFIGS = {
 let currentTargetName = 'earth';
 let currentConfig = TARGET_CONFIGS.earth;
 let dynamicCenter = new THREE.Vector3(0, 0, 0);
-const flight = { active:false, startTime:0, duration:2500, startRadius:0, endRadius:0, startCenter:new THREE.Vector3(), endCenterName:'earth', startEarthScale:1.0, startTheta:0, endTheta:0, startPhi:0, endPhi:0, startSunFocus:0, endSunFocus:0 };
+const flight = { active:false, startTime:0, duration:2500, startRadius:0, endRadius:0, startCenter:new THREE.Vector3(), endCenterName:'earth', startEarthScale:1.0, startTheta:0, endTheta:0, startPhi:0, endPhi:0, startSunFocus:0, endSunFocus:0, cameraCurve:null };
 
 function smoothstep01(value) {
   const x = Math.max(0, Math.min(1, value));
@@ -512,7 +512,7 @@ const MICRO_START_ZOOM = 4.5;
 const MICRO_EXIT_ZOOM = 4.3;
 const FLY_TO_CITY_2D_ZOOM = 10.4;
 
-function initOrUpdateMap(lat, lng) {
+function initOrUpdateMap(lat, lng, zoom = MICRO_START_ZOOM) {
   if (typeof maplibregl === 'undefined') {
     console.warn('MapLibre not loaded; cannot enter 2D map view.');
     return;
@@ -540,7 +540,7 @@ function initOrUpdateMap(lat, lng) {
         }]
       },
       center: [lng, lat],
-      zoom: MICRO_START_ZOOM,
+      zoom,
       pitch: 0,
       interactive: true
     });
@@ -556,7 +556,7 @@ function initOrUpdateMap(lat, lng) {
       upsert2DHealthLayer();
     });
   } else {
-    streetMap.jumpTo({ center: [lng, lat], zoom: MICRO_START_ZOOM });
+    streetMap.jumpTo({ center: [lng, lat], zoom });
     streetMap.resize();
   }
 }
@@ -932,10 +932,11 @@ function selectHealthMetaIn2D(meta, attempt = 0) {
 }
 
 function switchToMicro(lat, lng, options = {}) {
-  const preservedSelection = options.preserveSelectionMeta || selectedMetaForFlyOrigin();
+  const preservedSelection = options.suppressSelection ? null : (options.preserveSelectionMeta || selectedMetaForFlyOrigin());
+  const initialZoom = Number.isFinite(options.initialZoom) ? options.initialZoom : MICRO_START_ZOOM;
 
   isMicroView = true;
-  initOrUpdateMap(lat, lng);
+  initOrUpdateMap(lat, lng, initialZoom);
   document.body.classList.add('micro-view');
   setHealthOverlayForView();
   if (!preservedSelection) clearSelection();
@@ -953,6 +954,7 @@ function switchToMicro(lat, lng, options = {}) {
 }
 
 function switchToMacro() {
+  const preservedSelectedPillar = selectedPillar;
   isMicroView = false;
   document.body.classList.remove('micro-view');
   orbit.radius = MACRO_MIN_RADIUS + 0.05;
@@ -960,6 +962,10 @@ function switchToMacro() {
   setHealthOverlayForView();
   set2DHealthLayerVisibility(false);
   set2DSelectedHealthDisk(null);
+  if (preservedSelectedPillar) {
+    selectedPillar = preservedSelectedPillar;
+    requestAnimationFrame(() => refreshSelectedPillar3DHighlight());
+  }
   updateFlyPanelState();
   console.log('🌍 Returned to 3D globe view');
 }
@@ -3159,8 +3165,7 @@ function syncRightPanelForTarget() {
   const shouldMinimize = currentTargetName !== 'earth' && (healthMode || connectionsMode);
 
   if (shouldMinimize) {
-    inspectPanel.classList.remove('visible');
-    if (openFiltersBtn) openFiltersBtn.classList.add('visible');
+    minimizeRightPanel();
     return;
   }
 
@@ -3171,6 +3176,11 @@ function syncRightPanelForTarget() {
   } else if (connectionsMode && (selectedSystem || focusedSystem)) {
     inspectPanel.classList.add('visible');
   }
+}
+
+function minimizeRightPanel() {
+  inspectPanel.classList.remove('visible');
+  if (openFiltersBtn && (healthMode || connectionsMode)) openFiltersBtn.classList.add('visible');
 }
 
 function setSelectedSystemState(state) {
@@ -3367,11 +3377,6 @@ const primarySystem = {
 primarySystem.g.visible = false;
 const clickableSystems = [primarySystem, ...extraSystems];
 const connectionPool = Array.from({ length: clickableSystems.length - 1 }, () => createArcLine());
-const flyPulseArc = createArcLine();
-flyPulseArc.tubeCore.visible = false;
-flyPulseArc.tubeGlow.visible = false;
-flyPulseArc.tubeCore.renderOrder = 900;
-flyPulseArc.tubeGlow.renderOrder = 899;
 let cinematicFlyActive = false;
 let focusedSystem = primarySystem;
 let lastSelectedCityForOrigin = null;
@@ -3552,6 +3557,15 @@ function getTargetPosition(name) {
   return new THREE.Vector3(0, 0, 0);
 }
 
+function sphericalOffset(theta, phi, radius) {
+  const cp = Math.cos(phi);
+  return new THREE.Vector3(
+    Math.sin(theta) * cp * radius,
+    Math.sin(phi) * radius,
+    Math.cos(theta) * cp * radius
+  );
+}
+
 function syncTargetDropdownActive(targetName) {
   dropdownItems.forEach(item => {
     item.classList.toggle('active', item.dataset.target === targetName);
@@ -3582,11 +3596,19 @@ function flyToTarget(targetName) {
   const tPos = getTargetPosition(targetName);
   if (targetName === 'moon') { flight.endTheta = Math.atan2(tPos.x, tPos.z) + 0.4; flight.endPhi = 0.15; }
   else if (targetName === 'sun') { flight.endTheta = 0.0; flight.endPhi = 0.05; }
-  else { flight.endTheta = Math.atan2(sun.position.x, sun.position.z) - 0.6; flight.endPhi = 0.25; }
+  else {
+    const naturalEarthDir = camera.position.lengthSq() > 0.0001
+      ? camera.position.clone().normalize()
+      : sun.position.clone().normalize();
+    flight.endTheta = Math.atan2(naturalEarthDir.x, naturalEarthDir.z);
+    flight.endPhi = Math.asin(THREE.MathUtils.clamp(naturalEarthDir.y, -1, 1));
+  }
   let dTheta = flight.endTheta - flight.startTheta;
   while (dTheta > Math.PI) dTheta -= Math.PI * 2;
   while (dTheta < -Math.PI) dTheta += Math.PI * 2;
   flight.endTheta = flight.startTheta + dTheta;
+  const endCameraPos = tPos.clone().add(sphericalOffset(flight.endTheta, flight.endPhi, flight.endRadius));
+  flight.cameraCurve = buildTargetFlightCurve(camera.position.clone(), endCameraPos, targetName);
   currentTargetName = targetName;
   currentConfig = TARGET_CONFIGS[targetName];
   syncTargetDropdownActive(targetName);
@@ -3898,6 +3920,39 @@ function selectPillarFromInstance(mesh, instanceId, x, y) {
   hideCityHoverFlag();
   updatePillarSelectionFade();
   showTooltip(meta, x, y);
+}
+
+function refreshSelectedPillar3DHighlight(attempt = 0) {
+  if (!healthMode || isMicroView || !selectedPillar) return;
+
+  const matches = findSelectedPillarSegments(selectedPillar);
+  if (!matches.length) {
+    if (attempt < 30) requestAnimationFrame(() => refreshSelectedPillar3DHighlight(attempt + 1));
+    return;
+  }
+
+  let topPosition = null;
+  let ringMeta = null;
+  for (const match of matches) {
+    if (!topPosition || match.meta.topPosition.lengthSq() > topPosition.lengthSq()) {
+      topPosition = match.meta.topPosition;
+      ringMeta = match.meta;
+    }
+  }
+
+  if (!topPosition || !ringMeta) return;
+
+  const currentRadius = currentCloseZoomRadius(ringMeta.originalSegmentRadius || ringMeta.radius || ringMeta.segmentRadius || 0.008);
+  const radius = Math.max(0.0032, currentRadius * 1.45);
+  const bandWidth = Math.max(0.001, radius * 0.22);
+
+  if (pillarRing.geometry) pillarRing.geometry.dispose();
+  pillarRing.geometry = new THREE.RingGeometry(radius, radius + bandWidth, 64);
+  pillarRing.position.copy(topPosition);
+  pillarRing.lookAt(new THREE.Vector3(0, 0, 0));
+  pillarRing.visible = true;
+
+  updatePillarSelectionFade();
 }
 
 
@@ -4252,43 +4307,202 @@ function currentViewSurfaceDatumFallback() {
   };
 }
 
-function setupFlyPulseArc(originDatum, targetDatum) {
-  if (!flyPulseArc || !originDatum || !targetDatum) return;
-
-  const startVec = sceneVecForLatLng(originDatum.lat, originDatum.lng, 1.045);
-  const endVec = sceneVecForLatLng(targetDatum.lat, targetDatum.lng, 1.045);
-
-  updateArcPositions(endVec, startVec, flyPulseArc);
-
-  flyPulseArc.tubeCore.visible = true;
-  flyPulseArc.tubeGlow.visible = true;
-
-  flyPulseArc.tubeCore.material.uniforms.colorGoa.value.setHex(0xffd700);
-  flyPulseArc.tubeGlow.material.uniforms.colorGoa.value.setHex(0xffd700);
-  flyPulseArc.tubeCore.material.uniforms.colorSys.value.setHex(0xffd700);
-  flyPulseArc.tubeGlow.material.uniforms.colorSys.value.setHex(0xffd700);
-
-  flyPulseArc.tubeCore.material.uniforms.time.value = 0;
-  flyPulseArc.tubeGlow.material.uniforms.time.value = 0;
+function makeNaturalFlyCurve(startVec, endVec, liftScale = 0.22) {
+  const midpoint = startVec.clone().add(endVec).multiplyScalar(0.5);
+  const outward = midpoint.lengthSq() > 0.0001
+    ? midpoint.clone().normalize()
+    : endVec.clone().normalize();
+  const distance = startVec.distanceTo(endVec);
+  const lift = Math.min(2.8, 0.28 + distance * liftScale);
+  const control = midpoint.add(outward.multiplyScalar(lift));
+  return new THREE.QuadraticBezierCurve3(startVec.clone(), control, endVec.clone());
 }
 
-function hideFlyPulseArc(delay = 2200) {
-  if (!flyPulseArc) return;
-  setTimeout(() => {
-    if (!cinematicFlyActive) {
-      flyPulseArc.tubeCore.visible = false;
-      flyPulseArc.tubeGlow.visible = false;
+function slerpUnitVectors(from, to, t) {
+  const a = from.clone().normalize();
+  const b = to.clone().normalize();
+  const dot = THREE.MathUtils.clamp(a.dot(b), -1, 1);
+
+  if (dot > 0.9995) return a.lerp(b, t).normalize();
+
+  const theta = Math.acos(dot);
+  const sinTheta = Math.sin(theta);
+  if (Math.abs(sinTheta) < 0.0001) {
+    const fallbackAxis = Math.abs(a.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+    const axis = new THREE.Vector3().crossVectors(a, fallbackAxis).normalize();
+    return a.applyAxisAngle(axis, Math.PI * t).normalize();
+  }
+
+  return a.multiplyScalar(Math.sin((1 - t) * theta) / sinTheta)
+    .add(b.multiplyScalar(Math.sin(t * theta) / sinTheta))
+    .normalize();
+}
+
+function segmentApproachesEarth(a, b, safeRadius) {
+  const ab = b.clone().sub(a);
+  const denom = ab.lengthSq();
+  if (denom < 0.0001) return a.length() < safeRadius || b.length() < safeRadius;
+  const t = THREE.MathUtils.clamp(-a.dot(ab) / denom, 0, 1);
+  const closest = a.clone().add(ab.multiplyScalar(t));
+  return closest.length() < safeRadius;
+}
+
+function closestPointOnSegment(a, b, point) {
+  const ab = b.clone().sub(a);
+  const denom = ab.lengthSq();
+  if (denom < 0.0001) return { point: a.clone(), t: 0 };
+
+  const t = THREE.MathUtils.clamp(point.clone().sub(a).dot(ab) / denom, 0, 1);
+  return { point: a.clone().add(ab.multiplyScalar(t)), t };
+}
+
+function routeDetourAroundSphere(a, b, obstacle) {
+  const closest = closestPointOnSegment(a, b, obstacle.center);
+  const startDistance = a.distanceTo(obstacle.center);
+  const endDistance = b.distanceTo(obstacle.center);
+
+  if (startDistance < obstacle.radius || endDistance < obstacle.radius) return null;
+  if (closest.point.distanceTo(obstacle.center) >= obstacle.radius) return null;
+
+  const segmentDir = b.clone().sub(a).normalize();
+  let away = closest.point.clone().sub(obstacle.center);
+
+  if (away.lengthSq() < 0.0001) {
+    away = new THREE.Vector3().crossVectors(segmentDir, new THREE.Vector3(0, 1, 0));
+    if (away.lengthSq() < 0.0001) away.crossVectors(segmentDir, new THREE.Vector3(1, 0, 0));
+  }
+
+  away.normalize();
+  const sideBias = obstacle.center.clone().cross(segmentDir);
+  if (sideBias.lengthSq() > 0.0001 && away.dot(sideBias) < 0) away.multiplyScalar(-1);
+
+  const clearance = obstacle.radius * 1.18;
+  return closest.point.clone().add(away.multiplyScalar(clearance));
+}
+
+function currentFlightObstacles() {
+  const obstacles = [{
+    name: 'sun',
+    center: sunGroup.position.clone(),
+    radius: Math.max(0.42, 0.115 * Math.max(sunGroup.scale.x, SUN_CINEMATIC_SCALE) + 0.42)
+  }];
+
+  if (moon) {
+    obstacles.push({
+      name: 'moon',
+      center: moon.position.clone(),
+      radius: 0.22
+    });
+  }
+
+  return obstacles;
+}
+
+function targetFlightObstacles(targetName) {
+  const obstacles = [];
+
+  if (targetName !== 'earth') {
+    obstacles.push({ name: 'earth', center: new THREE.Vector3(0, 0, 0), radius: 1.46 });
+  }
+
+  if (targetName !== 'sun') {
+    obstacles.push({
+      name: 'sun',
+      center: sunGroup.position.clone(),
+      radius: Math.max(0.42, 0.115 * Math.max(sunGroup.scale.x, SUN_CINEMATIC_SCALE) + 0.42)
+    });
+  }
+
+  if (targetName !== 'moon' && moon) {
+    obstacles.push({
+      name: 'moon',
+      center: moon.position.clone(),
+      radius: 0.22
+    });
+  }
+
+  return obstacles;
+}
+
+function addCelestialAvoidance(points) {
+  const result = [points[0].clone()];
+  const obstacles = currentFlightObstacles();
+
+  for (let i = 1; i < points.length; i++) {
+    const start = result[result.length - 1];
+    const end = points[i].clone();
+
+    for (const obstacle of obstacles) {
+      const detour = routeDetourAroundSphere(start, end, obstacle);
+      if (detour) result.push(detour);
     }
-  }, delay);
+
+    result.push(end);
+  }
+
+  return result;
 }
 
-function updateFlyPulseTime(progress) {
-  if (!flyPulseArc) return;
+function addAvoidanceForObstacles(points, obstacles) {
+  const result = [points[0].clone()];
 
-  // Push the shader pulse forward during the flight.
-  const pulseTime = progress * 18.0;
-  flyPulseArc.tubeCore.material.uniforms.time.value = pulseTime;
-  flyPulseArc.tubeGlow.material.uniforms.time.value = pulseTime;
+  for (let i = 1; i < points.length; i++) {
+    const start = result[result.length - 1];
+    const end = points[i].clone();
+
+    for (const obstacle of obstacles) {
+      const detour = routeDetourAroundSphere(start, end, obstacle);
+      if (detour) result.push(detour);
+    }
+
+    result.push(end);
+  }
+
+  return result;
+}
+
+function buildTargetFlightCurve(startVec, endVec, targetName) {
+  const midpoint = startVec.clone().add(endVec).multiplyScalar(0.5);
+  const outward = midpoint.lengthSq() > 0.0001
+    ? midpoint.clone().normalize()
+    : endVec.clone().normalize();
+  const distance = startVec.distanceTo(endVec);
+  const lift = Math.min(3.4, Math.max(0.35, distance * 0.18));
+  const points = [
+    startVec.clone(),
+    midpoint.add(outward.multiplyScalar(lift)),
+    endVec.clone()
+  ];
+  const safePoints = addAvoidanceForObstacles(points, targetFlightObstacles(targetName));
+
+  return new THREE.CatmullRomCurve3(safePoints, false, 'centripetal', 0.35);
+}
+
+function buildCityFlyCurves(startVec, targetSurfaceVec, endCameraVec) {
+  const earthSafetyRadius = 1.72;
+  const targetDir = targetSurfaceVec.clone().normalize();
+  const startDir = startVec.lengthSq() > 0.0001
+    ? startVec.clone().normalize()
+    : targetDir.clone();
+  const highApproach = targetDir.clone().multiplyScalar(earthSafetyRadius);
+  const points = [startVec.clone()];
+
+  if (segmentApproachesEarth(startVec, highApproach, earthSafetyRadius * 0.92)) {
+    points.push(slerpUnitVectors(startDir, targetDir, 0.36).multiplyScalar(Math.max(startVec.length(), earthSafetyRadius + 1.4)));
+    points.push(slerpUnitVectors(startDir, targetDir, 0.68).multiplyScalar(earthSafetyRadius + 0.9));
+  } else {
+    const midpoint = startVec.clone().add(highApproach).multiplyScalar(0.5);
+    const midpointRadius = midpoint.length();
+    const outward = midpoint.lengthSq() > 0.0001 ? midpoint.clone().normalize() : targetDir.clone();
+    points.push(outward.multiplyScalar(Math.max(earthSafetyRadius + 0.35, midpointRadius + 0.38)));
+  }
+
+  points.push(highApproach);
+  const safePoints = addCelestialAvoidance(points);
+
+  return {
+    cameraCurve: new THREE.CatmullRomCurve3(safePoints.concat([endCameraVec.clone()]), false, 'centripetal', 0.35)
+  };
 }
 
 function findRenderedInstanceForDatum(d) {
@@ -4422,13 +4636,8 @@ function selectFlyDatumIn2D(d, attempt = 0) {
 function flyToDatum(d) {
   if (!d) return;
 
-  if (currentTargetName !== 'earth' || flight.active) {
-    pendingFlyToDatumAfterEarth = d;
-    if (currentTargetName !== 'earth') {
-      flyToTarget('earth');
-    }
-    return;
-  }
+  if (flight.active) flight.active = false;
+  pendingFlyToDatumAfterEarth = null;
 
   // Search/fly-to is precision intent: always reveal the exact raw city.
   if (healthClusterMode) {
@@ -4438,52 +4647,91 @@ function flyToDatum(d) {
     updatePillarHeightPercentileFilter();
   }
 
-  // ---- PULSE ORIGIN
-  // Use the last city the user selected/flew to, even if it has since been deselected.
-  // Camera still starts from the user's current POV.
-  const selectedOrigin = selectedMetaForFlyOrigin();
-  const fallbackOrigin = currentViewSurfaceDatumFallback();
-  const pulseOrigin = lastSelectedCityForOrigin || selectedOrigin || fallbackOrigin;
-
   clearSelection();
   hideCityHoverFlag();
 
-  setupFlyPulseArc(pulseOrigin, d);
+  const startCameraPos = camera.position.clone();
+  const startCenter = dynamicCenter.clone();
+  const startEarthScale = earthGroup.scale.x;
+  const startSunFocus = sunFocusBlend;
+  const finalTargetData = findClosestPillar(d.lat, d.lng) || d;
+
+  currentTargetName = 'earth';
+  currentConfig = TARGET_CONFIGS.earth;
+  syncTargetDropdownActive('earth');
+  minimizeRightPanel();
+  setHealthOverlayForView();
+  updateFlyPanelState();
+
+  const targetSurface = sceneVecForLatLng(d.lat, d.lng, 1.045);
+  const targetDir = targetSurface.clone().normalize();
+  const endRadius = ORBIT_MIN_RADIUS + 0.04;
+  const endCameraPos = targetDir.clone().multiplyScalar(endRadius);
+
+  const cameraRoute = buildCityFlyCurves(startCameraPos, targetSurface, endCameraPos);
   cinematicFlyActive = true;
 
-  const target = orbitAnglesForLatLng(d.lat, d.lng);
-
-  const startTheta = orbit.theta;
-  const startPhi = orbit.phi;
-  const startRadius = orbit.radius;
-
-  const midRadius = Math.min(ORBIT_MAX_RADIUS, Math.max(startRadius + 1.2, 3.2));
-  const endRadius = ORBIT_MIN_RADIUS + 0.04;
-
-  const duration = 10500;
+  const normalFlightDuration = 10500;
   const startTime = performance.now();
+  let microFlightStarted = false;
+  let microStartTime = null;
+  let microDuration = null;
 
   function step() {
-    const raw = Math.min(1, (performance.now() - startTime) / duration);
+    const elapsed = performance.now() - startTime;
+    const raw = Math.min(1, elapsed / normalFlightDuration);
 
-    const pulseProgress = easeInOutCubic(raw);
-    const cameraProgress = easeInOutCubic(clamp01((raw - 0.12) / 0.88));
+    const cameraProgress = easeInOutCubic(raw);
+    const microRaw = microStartTime === null ? 0 : THREE.MathUtils.clamp((elapsed - microStartTime) / microDuration, 0, 1);
+    const microProgress = microRaw > 0 ? easeInOutCubic(microRaw) : 0;
 
-    orbit.theta = lerpAngle(startTheta, target.theta, cameraProgress);
-    orbit.phi = startPhi + (target.phi - startPhi) * cameraProgress;
+    if (microProgress > 0) {
+      if (!microFlightStarted) {
+        microFlightStarted = true;
+        const initialMeta = buildFly2DSelectionMeta(finalTargetData);
 
-    let radius;
-    if (raw < 0.42) {
-      const tt = easeInOutCubic(raw / 0.42);
-      radius = startRadius + (midRadius - startRadius) * tt;
-    } else {
-      const tt = easeInOutCubic((raw - 0.42) / 0.58);
-      radius = midRadius + (endRadius - midRadius) * tt;
+        cinematicFlyActive = false;
+        switchToMicro(initialMeta.lat, initialMeta.lng, {
+          initialZoom: MICRO_START_ZOOM,
+          suppressSelection: true
+        });
+      }
+
+      if (streetMap) {
+        const zoomEase = Math.sin(microProgress * Math.PI * 0.5);
+        const zoom = MICRO_START_ZOOM + (FLY_TO_CITY_2D_ZOOM - MICRO_START_ZOOM) * zoomEase;
+        streetMap.jumpTo({ center: [finalTargetData.lng, finalTargetData.lat], zoom });
+        upsert2DHealthLayer();
+      }
+
+      if (microRaw < 1) {
+        requestAnimationFrame(step);
+      } else {
+        setTimeout(() => selectFlyDatumIn2D(finalTargetData), 520);
+      }
+      return;
     }
 
-    orbit.radius = radius;
+    dynamicCenter.lerpVectors(startCenter, new THREE.Vector3(0, 0, 0), cameraProgress);
+    earthGroup.scale.setScalar(startEarthScale + (1.0 - startEarthScale) * cameraProgress);
+    sunFocusBlend = startSunFocus + (0.0 - startSunFocus) * cameraProgress;
 
-    updateFlyPulseTime(pulseProgress);
+    const cameraPos = cameraRoute.cameraCurve.getPoint(cameraProgress);
+    const relativeCamera = cameraPos.clone().sub(dynamicCenter);
+    const radius = Math.max(0.0001, relativeCamera.length());
+
+    orbit.radius = radius;
+    orbit.theta = Math.atan2(relativeCamera.x, relativeCamera.z);
+    orbit.phi = Math.asin(THREE.MathUtils.clamp(relativeCamera.y / radius, -1, 1));
+
+    const earthRelativeRadius = Math.max(0.0001, cameraPos.length());
+    if (currentTargetName === 'earth' && earthRelativeRadius <= currentConfig.minRadius) {
+      microStartTime = elapsed;
+      microDuration = (normalFlightDuration - elapsed) * 1.25;
+      requestAnimationFrame(step);
+      return;
+    }
+
     updateCamera();
     markHealthShapeDirty();
     applyCloseZoomDiscMode();
@@ -4492,9 +4740,6 @@ function flyToDatum(d) {
       requestAnimationFrame(step);
     } else {
       cinematicFlyActive = false;
-
-      // Camera may arrive first; wait for the pulse impact before activation.
-      const PULSE_IMPACT_DELAY_MS = 0;
 
       (function(){
         markHealthShapeDirty();
@@ -4508,8 +4753,6 @@ function flyToDatum(d) {
           switchToMicro(targetData.lat, targetData.lng);
           selectFlyDatumIn2D(targetData);
         }
-
-        hideFlyPulseArc(2200);
       })();
     }
   }
@@ -4607,7 +4850,7 @@ function setupFlySearch() {
   });
 
   console.log('✅ Fly-to-city search ready');
-  console.log('✅ Cinematic fly-to pulse arc enabled: instant pulse impact triggers ripple + selection; fly-to switches to raw city mode.');
+  console.log('✅ Cinematic fly-to-city camera route enabled; fly-to switches to raw city mode.');
 }
 
 setupFlySearch();
@@ -4633,28 +4876,40 @@ function animate() {
     let p = Math.min(elapsed / flight.duration, 1.0);
     let flightP = Math.min(p / 0.65, 1.0);
     flightP = smoothstep01(flightP);
+    const routeP = flight.cameraCurve ? smoothstep01(p) : flightP;
     let panP = Math.max(0, (p - 0.65) / 0.35);
     panP = smoothstep01(panP);
     const sunRevealP = flight.endCenterName === 'sun'
-      ? smoothstep01((p - 0.42) / 0.58)
-      : flightP;
+      ? smoothstep01((p - 0.28) / 0.72)
+      : routeP;
     const endPos = getTargetPosition(flight.endCenterName);
-    dynamicCenter.lerpVectors(flight.startCenter, endPos, flightP);
-    orbit.radius = flight.startRadius + (flight.endRadius - flight.startRadius) * flightP;
-    const currentScale = flight.startEarthScale + (TARGET_CONFIGS[flight.endCenterName].earthScale - flight.startEarthScale) * flightP;
+    dynamicCenter.lerpVectors(flight.startCenter, endPos, routeP);
+    const currentScale = flight.startEarthScale + (TARGET_CONFIGS[flight.endCenterName].earthScale - flight.startEarthScale) * routeP;
     earthGroup.scale.setScalar(currentScale);
     sunFocusBlend = flight.startSunFocus + (flight.endSunFocus - flight.startSunFocus) * sunRevealP;
-    orbit.theta = flight.startTheta + (flight.endTheta - flight.startTheta) * panP;
-    orbit.phi = flight.startPhi + (flight.endPhi - flight.startPhi) * panP;
+
+    if (flight.cameraCurve) {
+      const cameraPos = flight.cameraCurve.getPoint(routeP);
+      const relativeCamera = cameraPos.clone().sub(dynamicCenter);
+      const radius = Math.max(0.0001, relativeCamera.length());
+      orbit.radius = radius;
+      orbit.theta = Math.atan2(relativeCamera.x, relativeCamera.z);
+      orbit.phi = Math.asin(THREE.MathUtils.clamp(relativeCamera.y / radius, -1, 1));
+    } else {
+      orbit.radius = flight.startRadius + (flight.endRadius - flight.startRadius) * flightP;
+      orbit.theta = flight.startTheta + (flight.endTheta - flight.startTheta) * panP;
+      orbit.phi = flight.startPhi + (flight.endPhi - flight.startPhi) * panP;
+    }
     if (p >= 1.0) {
       flight.active = false;
+      flight.cameraCurve = null;
       if (pendingFlyToDatumAfterEarth && flight.endCenterName === 'earth' && currentTargetName === 'earth') {
         const queuedDatum = pendingFlyToDatumAfterEarth;
         pendingFlyToDatumAfterEarth = null;
         flyToDatum(queuedDatum);
       }
     }
-  } else {
+  } else if (!cinematicFlyActive) {
     dynamicCenter.copy(getTargetPosition(currentTargetName));
     earthGroup.scale.setScalar(TARGET_CONFIGS[currentTargetName].earthScale);
     sunFocusBlend = currentTargetName === 'sun' ? 1.0 : 0.0;
