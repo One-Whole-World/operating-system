@@ -1527,6 +1527,7 @@ function smoothstep(edge0, edge1, x) {
 
 function closeZoomDiscBlend() {
   // 0 = full column height, 1 = flattened footprint disc.
+  if (currentTargetName !== 'earth') return 0.0;
   return 1.0 - smoothstep(DISC_MODE_FULL_RADIUS, DISC_MODE_START_RADIUS, orbit.radius);
 }
 
@@ -3255,18 +3256,20 @@ function createArcLine() {
 
 
 function updateArcPositions(startVec, endVec, arcObj) {
+  const earthVisualScale = earthGroup.scale.x;
+  const surfaceAnchorRadius = 1.03 * earthVisualScale;
   const startLen = startVec.length();
   const endLen = endVec.length();
   const avgLen = (startLen + endLen) * 0.5;
-  const styleBlendRaw = THREE.MathUtils.clamp((avgLen - 1.03) / 0.10, 0, 1);
+  const styleBlendRaw = THREE.MathUtils.clamp((avgLen - surfaceAnchorRadius) / Math.max(0.01, 0.10 * earthVisualScale), 0, 1);
   const styleBlend = styleBlendRaw * styleBlendRaw * (3.0 - 2.0 * styleBlendRaw);
 
-  const globeStart = startVec.clone().normalize().multiplyScalar(1.03);
-  const globeEnd = endVec.clone().normalize().multiplyScalar(1.03);
+  const globeStart = startVec.clone().normalize().multiplyScalar(surfaceAnchorRadius);
+  const globeEnd = endVec.clone().normalize().multiplyScalar(surfaceAnchorRadius);
   const globeMid = globeStart.clone().add(globeEnd).multiplyScalar(0.5).normalize();
   const globeDistance = globeStart.distanceTo(globeEnd);
-  const globeLift = Math.min(1.4, 0.35 + globeDistance * 0.6);
-  const globeControl = globeMid.multiplyScalar(1.0 + globeLift);
+  const globeLift = Math.min(1.4 * earthVisualScale, (0.35 * earthVisualScale) + globeDistance * 0.6);
+  const globeControl = globeMid.multiplyScalar(surfaceAnchorRadius + globeLift);
 
   const spaceStart = startVec.clone();
   const spaceEnd = endVec.clone();
@@ -3295,8 +3298,8 @@ function updateArcPositions(startVec, endVec, arcObj) {
   if (arcObj.tubeCore.geometry) arcObj.tubeCore.geometry.dispose();
   if (arcObj.tubeGlow.geometry) arcObj.tubeGlow.geometry.dispose();
   
-  arcObj.tubeCore.geometry = new THREE.TubeGeometry(curve, 64, 0.0015, 8, false);
-  arcObj.tubeGlow.geometry = new THREE.TubeGeometry(curve, 64, 0.0045, 8, false);
+  arcObj.tubeCore.geometry = new THREE.TubeGeometry(curve, 64, 0.0015 * earthVisualScale, 8, false);
+  arcObj.tubeGlow.geometry = new THREE.TubeGeometry(curve, 64, 0.0045 * earthVisualScale, 8, false);
 }
 
 // ===== UI & STATE =====
@@ -3442,12 +3445,13 @@ function getLocalBasis(normal) {
 }
 
 function getElevatedLayoutTargets(focusSystem) {
-  const center = new THREE.Vector3(0, 1.09, 0);
+  const earthVisualScale = earthGroup.scale.x;
+  const center = new THREE.Vector3(0, 1.09 * earthVisualScale, 0);
   const ringAxisA = new THREE.Vector3(1, 0, 0);
   const ringAxisB = new THREE.Vector3(0, 0, 1);
   const others = clickableSystems.filter(system => system !== focusSystem);
-  const ringRadius = 0.42;
-  const focusLift = new THREE.Vector3(0, 0.04, 0);
+  const ringRadius = 0.42 * earthVisualScale;
+  const focusLift = new THREE.Vector3(0, 0.04 * earthVisualScale, 0);
   const targets = new Map();
 
   targets.set(focusSystem, {
@@ -4636,12 +4640,14 @@ function animate() {
   }
 
   clickableSystems.forEach(system => {
+    const earthVisualScale = earthGroup.scale.x;
     const surface = system === primarySystem
       ? base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), earthGroup.rotation.y)
       : system.base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), earthGroup.rotation.y);
     const outward = surface.clone().normalize();
-    const pos = surface.clone().add(outward.clone().multiplyScalar(domeHeight));
-    const anchor = outward.clone().multiplyScalar(1.03);
+    const scaledSurface = surface.clone().multiplyScalar(earthVisualScale);
+    const pos = scaledSurface.clone().add(outward.clone().multiplyScalar(domeHeight * earthVisualScale));
+    const anchor = outward.clone().multiplyScalar(1.03 * earthVisualScale);
 
     system.surfacePosition = surface;
     system.surfaceNormal = outward;
@@ -4679,6 +4685,7 @@ function animate() {
     }
 
     system.g.position.copy(currentPos);
+    system.g.scale.setScalar(earthGroup.scale.x);
     system.g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), currentOutward);
     applySystemColors(system);
     const isHighlighted =
