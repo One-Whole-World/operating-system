@@ -258,7 +258,7 @@ body:not(.health-panel-mode) #pillarHeightRangeControl{
 #openFiltersBtn:hover{
   background:rgba(255,255,255,.14);
 }
-body.health-panel-mode #openFiltersBtn.visible{
+#openFiltersBtn.visible{
   display:block;
 }
 
@@ -912,18 +912,41 @@ function refresh2DHealthLayerIfActive() {
   }
 }
 
-function switchToMicro(lat, lng) {
+function selectHealthMetaIn2D(meta, attempt = 0) {
+  if (!meta || !isMicroView || !streetMap) return;
+
+  if (!streetMap.isStyleLoaded || !streetMap.isStyleLoaded()) {
+    if (attempt < 90) requestAnimationFrame(() => selectHealthMetaIn2D(meta, attempt + 1));
+    return;
+  }
+
+  upsert2DHealthLayer();
+
+  selectedPillar = meta.pillarId || meta.id || `${meta.lat}_${meta.lng}`;
+  selected2DHealthMeta = meta;
+  lastSelectedCityForOrigin = meta;
+
+  hideCityHoverFlag();
+  set2DSelectedHealthDisk(meta);
+  showTooltip(meta, Math.round(window.innerWidth * 0.50), Math.round(window.innerHeight * 0.50));
+}
+
+function switchToMicro(lat, lng, options = {}) {
+  const preservedSelection = options.preserveSelectionMeta || selectedMetaForFlyOrigin();
+
   isMicroView = true;
   initOrUpdateMap(lat, lng);
   document.body.classList.add('micro-view');
   setHealthOverlayForView();
-  clearSelection();
+  if (!preservedSelection) clearSelection();
+  else hideCityHoverFlag();
   closeInspectPanel();
   updateFlyPanelState();
   if (streetMap) {
     requestAnimationFrame(() => {
       streetMap.resize();
       upsert2DHealthLayer();
+      if (preservedSelection) selectHealthMetaIn2D(preservedSelection);
     });
   }
   console.log(`🗺️ Switched to 2D MapLibre view at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
@@ -1076,6 +1099,7 @@ showConnectionsBtn.addEventListener('click', () => {
   if (connectionsMode && typeof focusedSystem !== 'undefined' && focusedSystem) {
     openInspectPanel(focusedSystem);
   }
+  syncRightPanelForTarget();
   syncElevateButton();
 });
 
@@ -1096,6 +1120,7 @@ showHealthBtn.addEventListener('click', () => {
   showConnectionsBtn.style.display = healthMode ? 'none' : 'block';
   updateHealthPillarVisibility();
   updateFlyPanelState();
+  syncRightPanelForTarget();
   syncElevateButton();
 });
 
@@ -3130,6 +3155,24 @@ function closeInspectPanel() {
   if (openFiltersBtn) openFiltersBtn.classList.remove('visible');
 }
 
+function syncRightPanelForTarget() {
+  const shouldMinimize = currentTargetName !== 'earth' && (healthMode || connectionsMode);
+
+  if (shouldMinimize) {
+    inspectPanel.classList.remove('visible');
+    if (openFiltersBtn) openFiltersBtn.classList.add('visible');
+    return;
+  }
+
+  if (openFiltersBtn) openFiltersBtn.classList.remove('visible');
+
+  if (healthMode) {
+    inspectPanel.classList.add('visible');
+  } else if (connectionsMode && (selectedSystem || focusedSystem)) {
+    inspectPanel.classList.add('visible');
+  }
+}
+
 function setSelectedSystemState(state) {
   if (!selectedSystem) return;
   selectedSystem.state = state;
@@ -3332,6 +3375,7 @@ flyPulseArc.tubeGlow.renderOrder = 899;
 let cinematicFlyActive = false;
 let focusedSystem = primarySystem;
 let lastSelectedCityForOrigin = null;
+let pendingFlyToDatumAfterEarth = null;
 
 satisfiedBtn.addEventListener('click', () => setSelectedSystemState('satisfied'));
 notSatisfiedBtn.addEventListener('click', () => setSelectedSystemState('notSatisfied'));
@@ -3360,7 +3404,7 @@ elevateBtn.addEventListener('click', () => {
 });
 closeInspectBtn.addEventListener('click', closeInspectPanel);
 openFiltersBtn.addEventListener('click', () => {
-  if (!healthMode) return;
+  if (!healthMode && !connectionsMode) return;
   inspectPanel.classList.add('visible');
   openFiltersBtn.classList.remove('visible');
 });
@@ -3508,6 +3552,13 @@ function getTargetPosition(name) {
   return new THREE.Vector3(0, 0, 0);
 }
 
+function syncTargetDropdownActive(targetName) {
+  dropdownItems.forEach(item => {
+    item.classList.toggle('active', item.dataset.target === targetName);
+  });
+  if (targetBtn) targetBtn.innerHTML = `Fly me to ▾`;
+}
+
 function flyToTarget(targetName) {
   if (!TARGET_CONFIGS[targetName]) return;
   if (isMicroView) switchToMacro();
@@ -3538,11 +3589,9 @@ function flyToTarget(targetName) {
   flight.endTheta = flight.startTheta + dTheta;
   currentTargetName = targetName;
   currentConfig = TARGET_CONFIGS[targetName];
+  syncTargetDropdownActive(targetName);
 
-  if (healthMode && targetName !== 'earth') {
-    inspectPanel.classList.remove('visible');
-    if (openFiltersBtn) openFiltersBtn.classList.add('visible');
-  }
+  syncRightPanelForTarget();
   setHealthOverlayForView();
   updateFlyPanelState();
 }
@@ -3557,8 +3606,7 @@ dropdownItems.forEach(item => {
     if (!target) return;
     flyToTarget(target);
     if (targetBtn) targetBtn.innerHTML = `Fly me to ▾`;
-    dropdownItems.forEach(i => i.classList.remove('active'));
-    e.target.closest('.dropdown-item').classList.add('active');
+    syncTargetDropdownActive(target);
   });
 });
 
@@ -3583,14 +3631,14 @@ function updateFlyPanelState() {
 
   if (!flyPanelEl || !flyInputEl) return;
 
-  const shouldShow = healthMode && !isMicroView && currentTargetName === 'earth';
-  const canUse = shouldShow && currentTargetName === 'earth';
+  const shouldShow = healthMode && !isMicroView;
+  const canUse = shouldShow;
 
   flyPanelEl.style.display = shouldShow ? 'block' : 'none';
   flyInputEl.disabled = !canUse;
   flyInputEl.style.opacity = canUse ? '1' : '0.45';
   flyInputEl.style.cursor = canUse ? 'text' : 'not-allowed';
-  flyInputEl.placeholder = canUse ? 'Fly me to a city...' : 'Fly me to is available on Earth';
+  flyInputEl.placeholder = 'Fly me to a city...';
   if (!canUse && flySuggestionsEl) flySuggestionsEl.style.display = 'none';
   if (flyClearBtnEl) flyClearBtnEl.style.display = canUse && flyInputEl.value ? 'block' : 'none';
 }
@@ -4374,6 +4422,14 @@ function selectFlyDatumIn2D(d, attempt = 0) {
 function flyToDatum(d) {
   if (!d) return;
 
+  if (currentTargetName !== 'earth' || flight.active) {
+    pendingFlyToDatumAfterEarth = d;
+    if (currentTargetName !== 'earth') {
+      flyToTarget('earth');
+    }
+    return;
+  }
+
   // Search/fly-to is precision intent: always reveal the exact raw city.
   if (healthClusterMode) {
     healthClusterMode = false;
@@ -4590,7 +4646,14 @@ function animate() {
     sunFocusBlend = flight.startSunFocus + (flight.endSunFocus - flight.startSunFocus) * sunRevealP;
     orbit.theta = flight.startTheta + (flight.endTheta - flight.startTheta) * panP;
     orbit.phi = flight.startPhi + (flight.endPhi - flight.startPhi) * panP;
-    if (p >= 1.0) flight.active = false;
+    if (p >= 1.0) {
+      flight.active = false;
+      if (pendingFlyToDatumAfterEarth && flight.endCenterName === 'earth' && currentTargetName === 'earth') {
+        const queuedDatum = pendingFlyToDatumAfterEarth;
+        pendingFlyToDatumAfterEarth = null;
+        flyToDatum(queuedDatum);
+      }
+    }
   } else {
     dynamicCenter.copy(getTargetPosition(currentTargetName));
     earthGroup.scale.setScalar(TARGET_CONFIGS[currentTargetName].earthScale);
