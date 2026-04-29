@@ -7,7 +7,7 @@
 
 ## Goal
 
-Elevate Earth to a Paragon System and maintain it there.  
+Elevate Speaceship Earth to a Paragon System and maintain it there.  
 
 ## Needs
 
