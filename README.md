@@ -16,7 +16,7 @@
   
 ## Goal
 
-Reach Paragon level and maintin my position there.  
+Reach Paragon level and maitain my position there.  
 
 ## Needs
 
@@ -30,6 +30,12 @@ Reach Paragon level and maintin my position there.
 - [ ] I need all actions of my systems are according to zero strings principles.
 - [ ] I need to record every frame of every action of every system.
 - [ ] I need to create wisdom from all the recorded frames of all my subsystems.
+
+## Care Systems
+
+air, water, food, land, energy, plant, animal, seed, cloth, home, 
+clean, guard, health, design, signal, technology, transport, space, academy, wisdom, 
+justice, art, fun, community, challenge, history, love. 
 
 ## Terms Of Use
 
