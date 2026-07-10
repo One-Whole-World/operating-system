@@ -16,7 +16,7 @@
   
 ## Goal
 
-Reach Paragon level and maitain my position there.  
+Reach Paragon level and maintain my position there.  
 
 ## Needs
 
