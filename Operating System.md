@@ -83,3 +83,11 @@ justice, art, fun, community, challenge, history, love.
 - The World is the Stage, Set and the production Studio.
 - The Goal of the World is to provide every Actor everything it Needs to play its best Act for every Role it plays.
 - The recording of every Act of every Role is its Story.
+
+### **Pole pole. All hands on deck, please.**
+
+Love,
+
+**Your Captain Zero of the Blue Pearl**
+
+🏴‍☠️😌🙏🏽❤️
