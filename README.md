@@ -37,8 +37,7 @@ Pearl**.
 
 The Blue Pearl is entering Maintenance Mode in a safe harbor.
 
-Before we chart our next course, we're going to take account of every
-system aboard our adorable, ugly baby ship.
+Before we chart our next course, we are taking account of every system aboard our adorable, ugly baby ship.
 
 Then, together, please help me spruce her up and get her fit for our next
 mission.
