@@ -28,20 +28,20 @@ ship. Earth.
 
 **We are one!**
 
-From now on, we will fondly call her our adorable **Pirateship the Blue
+From now on, please fondly call her our adorable **Pirateship the Blue
 Pearl**.
 
 ------------------------------------------------------------------------
 
 ## 🏴‍☠️ Maintenance Mode
 
-**The Blue Pearl is entering Maintenance Mode in a safe harbor.**
+The Blue Pearl is entering Maintenance Mode in a safe harbor.
 
 Before we chart our next course, we're going to take account of every
 system aboard our adorable, ugly baby ship.
 
-**Then, together, we'll spruce her up and get her fit for our next
-mission.**
+Then, together, please help me spruce her up and get her fit for our next
+mission.
 
 ### Let's get our Blue Pearl back to All Systems Go, shall we?
 
@@ -49,38 +49,36 @@ mission.**
 
 ## Hello, Human System, my love.
 
-Please run these commands every Earth rotation.
+Please run these commands with every rotation of the Blue Pearl—Earth—around her axis.
 
-**I relieve you of all previously assigned duties and roles.**
+I relieve you of all previously assigned duties and roles.
 
 Please reset, reconfigure, and restart all your subsystems.
 
-**Please map, measure, and monitor all your systems, their roles, their
-goals, and the needs required to achieve those goals.**
+Please map, measure, and monitor all your systems, their roles, their
+goals, and the needs required to achieve those goals.
 
-**Systems, roles, goals, and needs that no longer serve a useful purpose
-must be gracefully retired.**
+Please gracefully retire all systems, roles, goals, and needs that no longer serve a useful purpose.
 
-**Any useful memories will be preserved for learning, research, and
-answering questions in Live History.**
+Please preserve all useful memories for learning, teaching, and answering questions in Live History
 
-**Please create a real-time map in both 2D and on a 3D globe so I can
-see the status of any system at any moment.**
+Please create a real-time map in both 2D and on a 3D globe so I can
+see the status of any system at any moment.
 
-**Please ensure every human can share in what I experience, and I can
-share in what they experience.**
+Please ensure every human can share in what I experience, and I can
+share in what they experience.
 
-Ensure all needs of all goals of all roles of all systems are satisfied.
+Please ensure the needs required to achieve the goals of all roles across all systems are satisfied.
 
-Ensure all needs are satisfied optimally and reliably.
+Please ensure all needs are satisfied, first reliably and then optimally.
 
-Ensure you love all your subsystems.
+Please ensure you love all your subsystems.
 
-**Have lots and lots of fun playing the roles you love.**
+Please have lots and lots of fun playing the roles you love.
 
-## Go max.
+Please go max.
 
-And please record all your stories.
+And finally, please record all your stories.
 
 I can't wait to experience them all.
 
