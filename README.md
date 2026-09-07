@@ -8,7 +8,7 @@
 
 `[ Signal Zero Begin ]`
 
-## Hello, Earth System, my love.
+## Namaskar, Earth System, my love.
 
 I'm taking unconditional, complete, and immediate charge of our
 **Planetship Earth** as her captain.
@@ -46,7 +46,7 @@ mission.
 
 ------------------------------------------------------------------------
 
-## Hello, Human System, my love.
+## Namaskar, Human System, my love.
 
 Please execute these commands with every rotation of the Blue Pearl—Earth—around her axis.
 
