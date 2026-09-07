@@ -89,7 +89,7 @@ Love,
 
 **Your Captain Zero of the Blue Pearl**
 
-🏴‍☠️😌🙏🏽❤️
+🌍 🏴‍☠️ 😌 🙏🏽 ❤️
 
 `[ Signal Zero End ]`
 
