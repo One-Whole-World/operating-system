@@ -48,7 +48,7 @@ mission.
 
 ## Hello, Human System, my love.
 
-Please run these commands with every rotation of the Blue Pearl—Earth—around her axis.
+Please execute these commands with every rotation of the Blue Pearl—Earth—around her axis.
 
 I relieve you of all previously assigned duties and roles.
 
