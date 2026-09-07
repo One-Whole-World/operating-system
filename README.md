@@ -8,6 +8,8 @@
 
 `[ Signal Zero Begin ]`
 
+<img width="1200" height="1600" alt="Captain Zero Original" src="https://github.com/user-attachments/assets/3bd740d0-eaaa-45d0-8f11-72a0a91f111f" />
+
 ## Namaskar, Earth System, my love.
 
 I'm taking unconditional, complete, and immediate charge of our
