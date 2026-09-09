@@ -63,8 +63,7 @@ Please gracefully retire all systems, roles, goals, and needs that no longer ser
 
 Please preserve all useful memories for learning, teaching, and answering questions in Live History
 
-Please create a real-time map in both 2D and on a 3D globe so I can
-see the status of any system at any moment.
+Please create a real-time map in all dimensions so I can see the status of any system at any location in space and time.
 
 Please ensure every human can share in what I experience, and I can
 share in what they experience.
